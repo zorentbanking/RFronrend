@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="Zorent.API/Zorent.API.csproj" />
+  <Project Path="Zorent.BLL/Zorent.BLL.csproj" />
+  <Project Path="Zorent.Common/Zorent.Common.csproj" />
+  <Project Path="Zorent.DAL/Zorent.DAL.csproj" />
+  <Project Path="Zorent.Domain/Zorent.Domain.csproj" />
+  <Project Path="Zorent.Tests/Zorent.Tests.csproj" />
+</Solution>

@@ -1,0 +1,5 @@
+TransactionId,Type,Amount,Description,Date,BalanceAfter
+6296cce9-f754-474b-8c8f-91df7c32127b,Credit,1000.00,Initial Deposit,5/6/2026 12:49:26 PM,1000.00
+f457ccb0-23a9-4c13-9690-db79185bd705,Debit,100.00,Test transfer,5/6/2026 4:11:57 PM,900.00
+a40b65b5-6bac-43ac-93ac-4ac305803108,Debit,100.00,Own transfer,5/6/2026 4:31:27 PM,800.00
+7f5ab232-bfe3-425d-b8d4-813049debbf1,Debit,200.00,Transfer to Allen,5/6/2026 4:39:51 PM,600.00

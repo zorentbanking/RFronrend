@@ -1,0 +1,105 @@
+﻿using Microsoft.AspNetCore.Mvc;
+using Zorent.BLL.DTOs.Auth;
+using Zorent.BLL.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+
+namespace Zorent.API.Controllers
+{
+    [ApiController]
+    [Route("api/auth")]
+    public class AuthController : ControllerBase
+    {
+        private readonly IAuthService _authService;
+
+        public AuthController(IAuthService authService)
+        {
+            _authService = authService;
+        }
+
+        [HttpPost("register")]
+        public async Task<IActionResult> Register(RegisterDto dto)
+        {
+            var result = await _authService.Register(dto);
+
+            if (!result.Success)
+                return BadRequest(result);
+
+            return Ok(result);
+        }
+        [HttpPost("login")]
+        public async Task<IActionResult> Login(LoginDto dto)
+        {
+            try
+            {
+                var result = await _authService.Login(dto);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+        [Authorize]
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout()
+        {
+            var username = User.Identity?.Name;
+
+            if (string.IsNullOrEmpty(username))
+                return Unauthorized();
+
+            await _authService.Logout(username);
+
+            return Ok("Logged out successfully");
+        }
+        [HttpPost("refresh")]
+        public async Task<IActionResult> RefreshToken([FromBody] string refreshToken)
+        {
+            var result = await _authService.RefreshToken(refreshToken);
+
+            if (!result.Success)
+                return BadRequest(result);
+
+            return Ok(result);
+        }
+        [Authorize]
+        [HttpGet("test")]
+        public IActionResult Test()
+        {
+            return Ok("You are authorized");
+        }
+        [HttpPost("forgot-password")]
+        public async Task<IActionResult> ForgotPassword(
+    ForgotPasswordDto dto)
+        {
+            var result =
+                await _authService.ForgotPassword(dto);
+
+            return Ok(new
+            {
+                message = result
+            });
+        }
+        [HttpPost("reset-password")]
+        public async Task<IActionResult> ResetPassword(
+    [FromBody] ResetPasswordDto dto)
+        {
+            var result =
+                await _authService.ResetPasswordAsync(dto);
+
+            if (result != "Password reset successful")
+            {
+                return BadRequest(new
+                {
+                    message = result
+                });
+            }
+
+            return Ok(new
+            {
+                message = result
+            });
+        }
+
+    }
+}

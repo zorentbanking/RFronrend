@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BCrypt.Net-Next" Version="4.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Zorent.Common\Zorent.Common.csproj" />
+    <ProjectReference Include="..\Zorent.DAL\Zorent.DAL.csproj" />
+    <ProjectReference Include="..\Zorent.Domain\Zorent.Domain.csproj" />
+  </ItemGroup>
+
+</Project>
