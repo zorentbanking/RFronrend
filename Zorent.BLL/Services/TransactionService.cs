@@ -30,6 +30,13 @@ namespace Zorent.BLL.Services
 
             if (source.Id == dest.Id)
                 return Fail("Cannot transfer to same account");
+            if (source.AccountType == "Fixed Deposit")
+            {
+                return Fail(
+                    "Transactions are not allowed from Fixed Deposit accounts"
+                );
+            }
+
 
             if (dest.Status != "Active")
                 return Fail("Destination inactive");

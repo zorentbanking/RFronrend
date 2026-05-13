@@ -313,14 +313,24 @@ namespace Zorent.BLL.Services
             return new ApiResponse<AuthResponseDto>
             {
                 Success = true,
-
                 Message = "Login successful",
 
                 Data = new AuthResponseDto
                 {
                     AccessToken = accessToken,
+                    RefreshToken = refreshToken,
 
-                    RefreshToken = refreshToken
+                    Id = user.Id,
+
+                    Username = user.Username,
+
+                    FullName = user.FullName,
+
+                    Email = user.Email,
+
+                    Phone = user.Phone,
+
+                    Address = user.Address
                 }
             };
         }

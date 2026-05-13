@@ -9,5 +9,11 @@ namespace Zorent.BLL.DTOs.Account
         public string Type { get; set; } = string.Empty;
 
         public decimal InitialDeposit { get; set; }
+
+       
+
+        
+
+        public int? TenureMonths { get; set; }
     }
 }

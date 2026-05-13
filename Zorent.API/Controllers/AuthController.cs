@@ -1,7 +1,9 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Zorent.BLL.DTOs.Auth;
 using Zorent.BLL.Interfaces;
-using Microsoft.AspNetCore.Authorization;
+using Zorent.DAL.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace Zorent.API.Controllers
 {
@@ -10,10 +12,11 @@ namespace Zorent.API.Controllers
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;
-
-        public AuthController(IAuthService authService)
+        private readonly ApplicationDbContext _context;
+        public AuthController(IAuthService authService, ApplicationDbContext context)
         {
             _authService = authService;
+            _context = context;
         }
 
         [HttpPost("register")]
@@ -100,6 +103,70 @@ namespace Zorent.API.Controllers
                 message = result
             });
         }
+
+        [Authorize]
+
+        [HttpGet("validate-account/{accountNumber}")]
+        public async Task<IActionResult> ValidateAccount(
+           string accountNumber)
+        {
+            // CHECK EMPTY
+            if (string.IsNullOrWhiteSpace(accountNumber))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Account number is required"
+                });
+            }
+
+            // CHECK LENGTH
+            if (accountNumber.Length != 10)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message =
+                        "Account number must be 10 digits"
+                });
+            }
+
+            // CHECK NUMBERS ONLY
+            if (!accountNumber.All(char.IsDigit))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message =
+                        "Account number must contain only numbers"
+                });
+            }
+
+            // FIND ACCOUNT
+            var account =
+    await _context.Accounts
+        .FirstOrDefaultAsync(a =>
+            a.AccountNumber.Trim() == accountNumber.Trim()
+        );
+
+            // ACCOUNT NOT FOUND
+            if (account == null)
+            {
+                return Ok(new
+                {
+                    success = false,
+                    message = "Account does not exist"
+                });
+            }
+
+            // SUCCESS
+            return Ok(new
+            {
+                success = true,
+                message = "Account exists"
+            });
+        }
+
 
     }
 }

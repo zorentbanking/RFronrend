@@ -20,6 +20,18 @@ namespace Zorent.Domain.Entities
 
         public int UserId { get; set; }
 
+        public decimal InterestRate { get; set; }
+
+        public int? TenureMonths { get; set; }
+
+        public DateTime? MaturityDate { get; set; }
+
+        public decimal? MaturityAmount { get; set; }
+
+        public decimal MinimumBalance { get; set; }
+
+        public DateTime? LowBalanceSince { get; set; }
+
         // ✅ FIXED
         public User User { get; set; } = default!;
 
