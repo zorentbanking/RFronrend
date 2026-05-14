@@ -37,7 +37,7 @@ namespace Zorent.BLL.Services
                 issuer: _config["Jwt:Issuer"],
                 audience: _config["Jwt:Audience"],
                 claims: claims,
-                expires: DateTime.Now.AddMinutes(20), 
+                expires: DateTime.Now.AddMinutes(60), 
                 signingCredentials: creds
             );
 

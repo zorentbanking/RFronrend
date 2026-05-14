@@ -7,6 +7,7 @@ namespace Zorent.BLL.DTOs.Transaction
     public class TransactionSearchDto
     {
         public int? AccountId { get; set; }
+       
 
         public DateTime? FromDate { get; set; }
         public DateTime? ToDate { get; set; }

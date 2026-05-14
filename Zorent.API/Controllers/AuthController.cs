@@ -78,6 +78,13 @@ namespace Zorent.API.Controllers
             var result =
                 await _authService.ForgotPassword(dto);
 
+            if (result == "User not found")
+            {
+                return BadRequest(new
+                {
+                    message = result
+                });
+            }
             return Ok(new
             {
                 message = result
@@ -143,11 +150,15 @@ namespace Zorent.API.Controllers
             }
 
             // FIND ACCOUNT
-            var account =
-    await _context.Accounts
-        .FirstOrDefaultAsync(a =>
-            a.AccountNumber.Trim() == accountNumber.Trim()
-        );
+            if (string.IsNullOrWhiteSpace(accountNumber))
+            {
+                return null;
+            }
+
+            var account = await _context.Accounts
+                .FirstOrDefaultAsync(a =>
+                    a.AccountNumber.Trim() == accountNumber.Trim()
+                );
 
             // ACCOUNT NOT FOUND
             if (account == null)
@@ -164,6 +175,43 @@ namespace Zorent.API.Controllers
             {
                 success = true,
                 message = "Account exists"
+            });
+        }
+
+        [HttpGet("validate-reset-token")]
+        public async Task<IActionResult> ValidateResetToken(
+    string token)
+        {
+            var user = await _context.Users
+                .FirstOrDefaultAsync(
+                    u => u.ResetToken == token
+                );
+
+            // TOKEN INVALID
+            if (user == null)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message =
+                        "Reset link has expired or already been used"
+                });
+            }
+
+            // TOKEN EXPIRED
+            if (user.ResetTokenExpiry == null ||
+                user.ResetTokenExpiry < DateTime.UtcNow)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Reset link has expired"
+                });
+            }
+
+            return Ok(new
+            {
+                success = true
             });
         }
 

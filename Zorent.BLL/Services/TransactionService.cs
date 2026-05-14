@@ -13,20 +13,31 @@ namespace Zorent.BLL.Services
     public class TransactionService : ITransactionService
     {
         private readonly ApplicationDbContext _context;
+       
 
         public TransactionService(ApplicationDbContext context)
         {
             _context = context;
+            
         }
 
         public async Task<ApiResponse> Transfer(TransferDto dto)
         {
+
             var source = await _context.Accounts.FindAsync(dto.SourceId);
             var dest = await _context.Accounts
                 .FirstOrDefaultAsync(a => a.AccountNumber == dto.DestinationAccount);
 
-            if (source == null || dest == null)
-                return Fail("Invalid accounts");
+            // AUTO INACTIVE CHECK
+            if (
+                source.LastTransactionDate
+                < DateTime.Now.AddDays(-2)
+            )
+            {
+                source.Status = "Inactive";
+
+                await _context.SaveChangesAsync();
+            }
 
             if (source.Id == dest.Id)
                 return Fail("Cannot transfer to same account");
@@ -36,10 +47,27 @@ namespace Zorent.BLL.Services
                     "Transactions are not allowed from Fixed Deposit accounts"
                 );
             }
+            if (dest.AccountType == "Fixed Deposit")
+            {
+                return Fail("Cannot Transfer to Fixed Deposit");
+            }
+
+            if (dest.AccountType == "Recurring Deposit")
+            {
+                return Fail("Cannot Transfer to Recurring Deposit");
+            }
 
 
             if (dest.Status != "Active")
-                return Fail("Destination inactive");
+                return Fail("Destination Account is inactive, Please deposit money to activate account");
+
+            if (source.Status != "Active")
+            {
+                return Fail(
+                    "Your account is inactive. Please deposit money to activate it."
+                );
+            }
+
 
             if (dto.Amount <= 0 || dto.Amount > source.Balance)
                 return Fail("Invalid amount");
@@ -51,28 +79,69 @@ namespace Zorent.BLL.Services
                 source.Balance -= dto.Amount;
                 dest.Balance += dto.Amount;
 
-                _context.Transactions.Add(new Transaction
+                source.LastTransactionDate = DateTime.Now;
+
+                dest.LastTransactionDate = DateTime.Now;
+
+
+                var debitTransaction = new Transaction
                 {
                     AccountId = source.Id,
-                    Type = "Debit",
-                    Amount = dto.Amount,
-                    Description = dto.Description,
-                    BalanceAfter = source.Balance
-                });
 
-                _context.Transactions.Add(new Transaction
+                   
+
+                    Type = "Debit",
+
+                    Amount = dto.Amount,
+
+                    Description = dto.Description,
+
+                    BalanceAfter = source.Balance,
+
+                    CreatedAt = DateTime.Now,
+
+                    FromAccountNumber = source.AccountNumber,
+
+                    ToAccountNumber = dest.AccountNumber
+                };
+
+                var creditTransaction = new Transaction
                 {
                     AccountId = dest.Id,
+
+                    
+
                     Type = "Credit",
+
                     Amount = dto.Amount,
+
                     Description = dto.Description,
-                    BalanceAfter = dest.Balance
-                });
+
+                    BalanceAfter = dest.Balance,
+
+                    CreatedAt = DateTime.Now,
+
+                    FromAccountNumber = source.AccountNumber,
+
+                    ToAccountNumber = dest.AccountNumber
+                };
+
+                _context.Transactions.Add(debitTransaction);
+
+                _context.Transactions.Add(creditTransaction);
 
                 await _context.SaveChangesAsync();
                 await tx.CommitAsync();
 
-                return Success("Transfer successful");
+                return new ApiResponse
+                {
+                    Success = true,
+                    Message = "Transfer successful",
+                    Data = new
+                    {
+                        transactionId = debitTransaction.TransactionId
+                    }
+                };
             }
             catch
             {
@@ -141,11 +210,21 @@ namespace Zorent.BLL.Services
             };
         }
 
-        public async Task<ApiResponse<object>> Search(TransactionSearchDto f)
+        public async Task<ApiResponse<object>> Search(
+     TransactionSearchDto f,
+     int userId)
         {
-            var query = _context.Transactions.AsQueryable();
+            // GET ONLY LOGGED-IN USER ACCOUNTS
+            var userAccountIds = await _context.Accounts
+                .Where(a => a.UserId == userId)
+                .Select(a => a.Id)
+                .ToListAsync();
 
-            // filters
+            // ONLY USER TRANSACTIONS
+            var query = _context.Transactions
+                .Where(x => userAccountIds.Contains(x.AccountId));
+
+            // FILTERS
             if (f.AccountId != null)
                 query = query.Where(x => x.AccountId == f.AccountId);
 
@@ -165,12 +244,14 @@ namespace Zorent.BLL.Services
                 query = query.Where(x => x.Amount <= f.MaxAmount);
 
             if (!string.IsNullOrEmpty(f.Keyword))
-                query = query.Where(x => x.Description.Contains(f.Keyword));
+                query = query.Where(x =>
+                    x.Description.Contains(f.Keyword));
 
-            // total count
+            // TOTAL
             var total = await query.CountAsync();
 
             var data = await query
+                .OrderByDescending(x => x.CreatedAt)
                 .Skip((f.Page - 1) * f.PageSize)
                 .Take(f.PageSize)
                 .Select(t => new TransactionDto
@@ -196,9 +277,18 @@ namespace Zorent.BLL.Services
                 }
             };
         }
-        public async Task<byte[]> ExportToCsv(TransactionSearchDto f)
+        public async Task<byte[]> ExportToCsv(
+     TransactionSearchDto f,
+     int userId
+ )
         {
-            var query = _context.Transactions.AsQueryable();
+            var userAccountIds = await _context.Accounts
+     .Where(a => a.UserId == userId)
+     .Select(a => a.Id)
+     .ToListAsync();
+
+            var query = _context.Transactions
+                .Where(x => userAccountIds.Contains(x.AccountId));
 
             // same filters (copy paste)
             if (f.AccountId != null)
@@ -235,6 +325,93 @@ namespace Zorent.BLL.Services
             }
 
             return Encoding.UTF8.GetBytes(sb.ToString());
+        }
+
+
+        public async Task<ApiResponse<object>> GetStatement(
+    string accountNumber)
+        {
+            var account = await _context.Accounts
+                .Include(a => a.User)
+                .FirstOrDefaultAsync(a =>
+                    a.AccountNumber == accountNumber);
+
+            if (account == null)
+            {
+                return new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "Account not found"
+                };
+            }
+
+            var transactions = await _context.Transactions
+     .Where(t =>
+         t.AccountId == account.Id
+         ||
+         t.ToAccountNumber == account.AccountNumber
+     )
+     .OrderByDescending(t => t.CreatedAt)
+     .Select(t => new StatementTransactionDto
+     {
+         TransactionId = t.TransactionId,
+
+         Type = t.Type,
+
+         Amount = t.Amount,
+
+         Description = t.Description ?? "",
+
+         Date = t.CreatedAt,
+
+         Balance = t.BalanceAfter,
+
+         FromAccount =
+             t.FromAccountNumber ?? "-",
+
+         ToAccount =
+             t.ToAccountNumber ?? "-",
+
+         InterestEarned = 0
+     })
+     .ToListAsync();
+
+            var data = new StatementDto
+            {
+                CustomerName = account.User.FullName,
+
+                CustomerId = account.UserId,
+
+                AccountNumber = account.AccountNumber,
+
+                AccountType = account.AccountType,
+
+                AvailableBalance = account.Balance,
+
+                InterestRate = account.InterestRate,
+
+                DurationMonths = account.TenureMonths,
+
+                MaturityDate = account.MaturityDate,
+
+                MaturityAmount = account.MaturityAmount,
+
+                InstallmentDate = account.InstallmentDate,
+
+                TotalInstallments = account.TotalInstallments,
+
+                PaidInstallments = account.PaidInstallments,
+
+                RemainingInstallments = account.RemainingInstallments,
+
+                Transactions = transactions
+            };
+
+            return new ApiResponse<object>
+            {
+                Success = true,
+                Data = data
+            };
         }
 
         private ApiResponse Fail(string m) => new() { Success = false, Message = m };

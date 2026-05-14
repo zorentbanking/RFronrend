@@ -31,8 +31,17 @@ namespace Zorent.Domain.Entities
         public decimal MinimumBalance { get; set; }
 
         public DateTime? LowBalanceSince { get; set; }
+        public DateTime LastTransactionDate { get; set; } = DateTime.Now;
 
         // ✅ FIXED
+
+        public DateTime? InstallmentDate { get; set; }
+
+        public int? TotalInstallments { get; set; }
+
+        public int PaidInstallments { get; set; } = 0;
+
+        public int? RemainingInstallments { get; set; }
         public User User { get; set; } = default!;
 
         // ✅ FIXED

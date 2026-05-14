@@ -202,7 +202,26 @@ namespace Zorent.BLL.Services
 
                 MaturityDate = maturityDate,
 
-                MaturityAmount = maturityAmount
+                MaturityAmount = maturityAmount,
+                InstallmentDate =
+    dto.Type == "Recurring Deposit"
+        ? dto.InstallmentDate
+        : null,
+
+                TotalInstallments =
+    dto.Type == "Recurring Deposit"
+        ? dto.TenureMonths
+        : null,
+
+                PaidInstallments =
+    dto.Type == "Recurring Deposit"
+        ? 0
+        : 0,
+
+                RemainingInstallments =
+    dto.Type == "Recurring Deposit"
+        ? dto.TenureMonths
+        : null
             };
 
             _context.Accounts.Add(account);
@@ -232,17 +251,72 @@ namespace Zorent.BLL.Services
                 dto.Type == "Recurring Deposit"
             )
             {
-                return Success(
-                    $"Account created successfully. " +
-                    $"Interest Rate: {interestRate}% | " +
-                    $"Maturity Amount: ₹{maturityAmount:F2} | " +
-                    $"Maturity Date: {maturityDate:dd-MMM-yyyy}"
-                );
+                return new ApiResponse
+                {
+                    Success = true,
+                    Message = "Account created successfully",
+
+                    Data = new
+                    {
+                        accountNumber = account.AccountNumber,
+
+                        accountType = account.AccountType,
+
+                        balance = account.Balance,
+
+                        createdAt = account.CreatedAt,
+
+                        interestRate = account.InterestRate,
+
+                        tenureMonths = account.TenureMonths,
+
+                        maturityAmount = account.MaturityAmount,
+
+                        maturityDate = account.MaturityDate,
+
+                        installmentDate = account.InstallmentDate,
+
+                        totalInstallments = account.TotalInstallments,
+
+                        paidInstallments = account.PaidInstallments,
+
+                        remainingInstallments = account.RemainingInstallments
+                    }
+                };
             }
 
-            return Success(
-                "Account created successfully"
-            );
+            return new ApiResponse
+            {
+                Success = true,
+                Message = "Account created successfully",
+
+                Data = new
+                {
+                    accountNumber = account.AccountNumber,
+
+                    accountType = account.AccountType,
+
+                    balance = account.Balance,
+
+                    createdAt = account.CreatedAt,
+
+                    interestRate = account.InterestRate,
+
+                    tenureMonths = account.TenureMonths,
+
+                    maturityAmount = account.MaturityAmount,
+
+                    maturityDate = account.MaturityDate,
+
+                    installmentDate = account.InstallmentDate,
+
+                    totalInstallments = account.TotalInstallments,
+
+                    paidInstallments = account.PaidInstallments,
+
+                    remainingInstallments = account.RemainingInstallments
+                }
+            };
         }
 
         public async Task<ApiResponse<List<AccountDto>>> GetUserAccounts(
@@ -271,6 +345,39 @@ namespace Zorent.BLL.Services
                 Success = true,
                 Data = data
             };
+        }
+
+        public async Task CheckAccountStatus(int accountId)
+        {
+            var account = await _context.Accounts
+                .FirstOrDefaultAsync(a => a.Id == accountId);
+
+            if (account == null)
+                return;
+
+            // GET LAST TRANSACTION
+            var lastTransaction = await _context.Transactions
+                .Where(t => t.AccountId == accountId)
+                .OrderByDescending(t => t.CreatedAt)
+                .FirstOrDefaultAsync();
+
+            if (lastTransaction == null)
+                return;
+
+            // 2 DAYS INACTIVE
+            if (
+                lastTransaction.CreatedAt
+                < DateTime.Now.AddDays(-2)
+            )
+            {
+                account.Status = "Inactive";
+            }
+            else
+            {
+                account.Status = "Active";
+            }
+
+            await _context.SaveChangesAsync();
         }
 
         private ApiResponse Fail(string msg) =>

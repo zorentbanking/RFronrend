@@ -9,9 +9,17 @@ namespace Zorent.DAL.Interfaces
     public interface IUserRepository
     {
         Task<bool> UserExistsAsync(string email, string username);
-        Task<User?> GetByUsernameAsync(string username);
-        Task<User?> GetByRefreshTokenAsync(string refreshToken);
+
+        Task<bool> EmailExistsAsync(string email);
+
+        Task<bool> UsernameExistsAsync(string username);
+
         Task AddUserAsync(User user);
+
         Task SaveChangesAsync();
+
+        Task<User?> GetByUsernameAsync(string username);
+
+        Task<User?> GetByRefreshTokenAsync(string refreshToken);
     }
 }

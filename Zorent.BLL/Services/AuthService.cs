@@ -184,17 +184,34 @@ namespace Zorent.BLL.Services
             }
 
             // CHECK EXISTING USER
-            var exists = await _userRepository
-                .UserExistsAsync(dto.Email, dto.Username);
+            // CHECK EMAIL EXISTS
+            var emailExists =
+                await _userRepository
+                    .EmailExistsAsync(dto.Email);
 
-            if (exists)
+            if (emailExists)
             {
                 return new ApiResponse
                 {
                     Success = false,
-                    Message = "User already exists"
+                    Message = "Email already exists"
                 };
             }
+
+            // CHECK USERNAME EXISTS
+            var usernameExists =
+                await _userRepository
+                    .UsernameExistsAsync(dto.Username);
+
+            if (usernameExists)
+            {
+                return new ApiResponse
+                {
+                    Success = false,
+                    Message = "Username already exists"
+                };
+            }
+
 
             // CREATE USER
             var user = new User
@@ -253,7 +270,7 @@ namespace Zorent.BLL.Services
             if (user.IsLocked && user.LockoutEnd > DateTime.Now)
             {
                 return Fail(
-                    $"Account locked until {user.LockoutEnd}"
+                    $"Please Login After  {user.LockoutEnd}"
                 );
             }
 
@@ -429,27 +446,38 @@ namespace Zorent.BLL.Services
 
             return "Reset link sent to email";
         }
-       
+
         public async Task<string> ResetPasswordAsync(
-    ResetPasswordDto dto)
+     ResetPasswordDto dto)
         {
             var user = await _context.Users
                 .FirstOrDefaultAsync(
                     u => u.ResetToken == dto.Token
                 );
 
-            if (user == null)
-                return "Invalid token";
+            // TOKEN INVALID / ALREADY USED
+            if (user == null ||
+                string.IsNullOrEmpty(user.ResetToken))
+            {
+                return "Reset link has expired or already been used";
+            }
 
-            if (user.ResetTokenExpiry < DateTime.UtcNow)
-                return "Token expired";
+            // TOKEN EXPIRED
+            if (user.ResetTokenExpiry == null ||
+                user.ResetTokenExpiry < DateTime.UtcNow)
+            {
+                return "Reset link has expired or already been used";
+            }
 
+            // PASSWORD MISMATCH
             if (dto.NewPassword != dto.ConfirmPassword)
                 return "Passwords do not match";
 
+            // UPDATE PASSWORD
             user.PasswordHash =
                 BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
 
+            // CLEAR TOKEN
             user.ResetToken = null;
             user.ResetTokenExpiry = null;
 

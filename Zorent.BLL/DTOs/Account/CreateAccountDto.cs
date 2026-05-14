@@ -10,9 +10,9 @@ namespace Zorent.BLL.DTOs.Account
 
         public decimal InitialDeposit { get; set; }
 
-       
+        public DateTime? InstallmentDate { get; set; }
 
-        
+
 
         public int? TenureMonths { get; set; }
     }

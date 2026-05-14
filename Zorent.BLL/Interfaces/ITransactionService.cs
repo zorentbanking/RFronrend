@@ -16,9 +16,15 @@ namespace Zorent.BLL.Interfaces
             string? sortBy = "date",
             string? order = "desc");
 
-      
-        Task<ApiResponse<object>> Search(TransactionSearchDto filter);
 
-        Task<byte[]> ExportToCsv(TransactionSearchDto filter);
+        Task<ApiResponse<object>> Search(
+     TransactionSearchDto f,
+     int userId
+ );
+
+        Task<ApiResponse<object>> GetStatement(
+     string accountNumber);
+
+        Task<byte[]> ExportToCsv(TransactionSearchDto f, int userId);
     }
 }

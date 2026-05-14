@@ -1,7 +1,9 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using Zorent.BLL.DTOs.Transaction;
 using Zorent.BLL.Interfaces;
+using Zorent.BLL.Services;
 
 namespace Zorent.API.Controllers
 {
@@ -30,19 +32,57 @@ namespace Zorent.API.Controllers
         }
 
         //  SEARCH (FR-SRCH-01 to 04)
+        [Authorize]
         [HttpPost("search")]
-        public async Task<IActionResult> Search([FromBody] TransactionSearchDto dto)
+        public async Task<IActionResult> Search(
+     [FromBody] TransactionSearchDto dto)
         {
-            var result = await _service.Search(dto);
+            var userId =
+                int.Parse(
+                    User.FindFirst("UserId")!.Value
+                );
+
+            var result =
+                await _service.Search(dto, userId);
+
             return Ok(result);
         }
 
         // ✅ EXPORT CSV (FR-SRCH-05)
+        [Authorize]
         [HttpPost("export")]
-        public async Task<IActionResult> Export([FromBody] TransactionSearchDto dto)
+        public async Task<IActionResult> Export(
+     [FromBody] TransactionSearchDto dto)
         {
-            var file = await _service.ExportToCsv(dto);
-            return File(file, "text/csv", "transactions.csv");
+            var userId =
+                int.Parse(
+                    User.FindFirst("UserId")!.Value
+                );
+
+            var file =
+                await _service.ExportToCsv(dto, userId);
+
+            return File(
+                file,
+                "text/csv",
+                "transactions.csv"
+            );
+        }
+
+        [HttpGet("statement/{accountNumber}")]
+        public async Task<IActionResult> GetStatement(
+    string accountNumber)
+        {
+            var result =
+                await _service
+    .GetStatement(accountNumber);
+
+            if (!result.Success)
+            {
+                return BadRequest(result);
+            }
+
+            return Ok(result);
         }
     }
 }

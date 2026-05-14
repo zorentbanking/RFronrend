@@ -8,11 +8,16 @@ namespace Zorent.Domain.Entities
     {
         public int Id { get; set; }
 
-        public string TransactionId { get; set; } = Guid.NewGuid().ToString();
+        public string TransactionId { get; set; } =
+            GenerateTransactionId();
 
         public int AccountId { get; set; }
 
         // ✅ FIXED
+
+        public string? FromAccountNumber { get; set; }
+
+        public string? ToAccountNumber { get; set; }
         public Account Account { get; set; } = default!;
 
         public string Type { get; set; } = string.Empty;
@@ -24,5 +29,19 @@ namespace Zorent.Domain.Entities
         public DateTime CreatedAt { get; set; } = DateTime.Now;
 
         public decimal BalanceAfter { get; set; }
+        private static string GenerateTransactionId()
+        {
+            Random random =
+                new Random(Guid.NewGuid().GetHashCode());
+
+            string transactionId = "";
+
+            for (int i = 0; i < 12; i++)
+            {
+                transactionId += random.Next(0, 10).ToString();
+            }
+
+            return transactionId;
+        }
     }
 }
