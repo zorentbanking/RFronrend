@@ -424,7 +424,7 @@ namespace Zorent.BLL.Services
                 .FirstOrDefaultAsync(x => x.Email == dto.Email);
 
             if (user == null)
-                return "User not found";
+                return "Email is not registerd!!";
 
             var token = Guid.NewGuid().ToString();
 

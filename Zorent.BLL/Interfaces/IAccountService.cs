@@ -10,5 +10,12 @@ namespace Zorent.BLL.Interfaces
     {
         Task<ApiResponse> CreateAccount(CreateAccountDto dto, int userId);
         Task<ApiResponse<List<AccountDto>>> GetUserAccounts(int userId);
+        Task<ApiResponse<object>> DepositMoney(DepositDto dto, int userId);
+        Task<ApiResponse<object>> CloseDeposit(
+    CloseDepositDto dto,
+    int userId);
+        Task<ApiResponse<object>> GetAccountByNumber(
+    string accountNumber,
+    int userId);
     }
 }

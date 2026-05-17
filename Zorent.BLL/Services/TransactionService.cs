@@ -59,7 +59,7 @@ namespace Zorent.BLL.Services
 
 
             if (dest.Status != "Active")
-                return Fail("Destination Account is inactive, Please deposit money to activate account");
+                return Fail("Destination Account is Closed");
 
             if (source.Status != "Active")
             {
@@ -216,7 +216,8 @@ namespace Zorent.BLL.Services
         {
             // GET ONLY LOGGED-IN USER ACCOUNTS
             var userAccountIds = await _context.Accounts
-                .Where(a => a.UserId == userId)
+                .Where(a => a.UserId == userId &&
+        a.Status != "Closed")
                 .Select(a => a.Id)
                 .ToListAsync();
 
@@ -283,7 +284,8 @@ namespace Zorent.BLL.Services
  )
         {
             var userAccountIds = await _context.Accounts
-     .Where(a => a.UserId == userId)
+     .Where(a => a.UserId == userId &&
+        a.Status != "Closed")
      .Select(a => a.Id)
      .ToListAsync();
 
@@ -378,6 +380,7 @@ namespace Zorent.BLL.Services
 
             var data = new StatementDto
             {
+                CreatedAt = account.CreatedAt,
                 CustomerName = account.User.FullName,
 
                 CustomerId = account.UserId,

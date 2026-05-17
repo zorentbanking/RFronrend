@@ -121,22 +121,21 @@ namespace Zorent.BLL.Services
                         );
 
                     // RD TOTAL INVESTMENT
-                    decimal totalInvestment =
-                        dto.InitialDeposit *
-                        dto.TenureMonths.Value;
+                    decimal P = dto.InitialDeposit;
 
-                    // RD INTEREST
-                    decimal rdInterest =
+                    int N = dto.TenureMonths.Value;
+
+                    decimal R = interestRate;
+
+                    decimal maturity =
+                        P * N +
                         (
-                            totalInvestment *
-                            interestRate *
-                            dto.TenureMonths.Value
+                            P * N * (N + 1) * R
                         )
-                        / (12 * 100);
+                        /
+                        (2 * 12 * 100);
 
-                    // RD MATURITY
-                    maturityAmount =
-                        totalInvestment + rdInterest;
+                    maturityAmount = maturity;
 
                     break;
             }
@@ -149,14 +148,19 @@ namespace Zorent.BLL.Services
                 );
             }
 
-            // MAX 5 ACCOUNTS
-            if (
+            // MAX 5 ACTIVE ACCOUNTS ONLY
+            int activeAccountsCount =
                 await _context.Accounts
-                    .CountAsync(a => a.UserId == userId) >= 5
-            )
+                    .CountAsync(a =>
+                        a.UserId == userId
+                        &&
+                        a.Status != "Closed"
+                    );
+
+            if (activeAccountsCount >= 5)
             {
                 return Fail(
-                    "Maximum 5 accounts allowed"
+                    "Maximum 5 active accounts allowed"
                 );
             }
 
@@ -221,27 +225,36 @@ namespace Zorent.BLL.Services
                 RemainingInstallments =
     dto.Type == "Recurring Deposit"
         ? dto.TenureMonths
-        : null
+        : null,
+
+
+                MonthlyInstallment =
+    dto.Type == "Recurring Deposit"
+        ? dto.InitialDeposit
+        : 0
+
             };
 
             _context.Accounts.Add(account);
 
             // CREATE INITIAL TRANSACTION
-            _context.Transactions.Add(
-                new Transaction
-                {
-                    Account = account,
+            // CREATE INITIAL TRANSACTION
+            var transaction = new Transaction
+            {
+                Account = account,
 
-                    Type = "Credit",
+                Type = "Credit",
 
-                    Amount = dto.InitialDeposit,
+                Amount = dto.InitialDeposit,
 
-                    Description = "Initial Deposit",
+                Description = "Initial Deposit",
 
-                    BalanceAfter = dto.InitialDeposit,
+                BalanceAfter = dto.InitialDeposit,
 
-                    CreatedAt = DateTime.Now
-                });
+                CreatedAt = DateTime.Now
+            };
+
+            _context.Transactions.Add(transaction);
 
             await _context.SaveChangesAsync();
 
@@ -280,7 +293,10 @@ namespace Zorent.BLL.Services
 
                         paidInstallments = account.PaidInstallments,
 
-                        remainingInstallments = account.RemainingInstallments
+                        remainingInstallments = account.RemainingInstallments,
+
+                        // ADD THIS
+                        transactionId = transaction.TransactionId
                     }
                 };
             }
@@ -314,7 +330,10 @@ namespace Zorent.BLL.Services
 
                     paidInstallments = account.PaidInstallments,
 
-                    remainingInstallments = account.RemainingInstallments
+                    remainingInstallments = account.RemainingInstallments,
+
+                    // ADD THIS
+                    transactionId = transaction.TransactionId
                 }
             };
         }
@@ -336,7 +355,8 @@ namespace Zorent.BLL.Services
 
                     Status = a.Status,
 
-                    CreatedAt = a.CreatedAt
+                    CreatedAt = a.CreatedAt,
+                    ClosedAt = a.ClosedAt
                 })
                 .ToListAsync();
 
@@ -355,6 +375,12 @@ namespace Zorent.BLL.Services
             if (account == null)
                 return;
 
+            // DO NOT MODIFY CLOSED ACCOUNTS
+            if (account.Status == "Closed")
+            {
+                return;
+            }
+           
             // GET LAST TRANSACTION
             var lastTransaction = await _context.Transactions
                 .Where(t => t.AccountId == accountId)
@@ -378,6 +404,508 @@ namespace Zorent.BLL.Services
             }
 
             await _context.SaveChangesAsync();
+        }
+        public async Task<ApiResponse<object>> CloseDeposit(
+    CloseDepositDto dto,
+    int userId)
+        {
+            var depositAccount = await _context.Accounts
+                .Include(a => a.User)
+                .FirstOrDefaultAsync(a =>
+                    a.AccountNumber == dto.DepositAccountNumber
+                    &&
+                    a.UserId == userId);
+
+            if (depositAccount == null)
+            {
+                return new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "Deposit account not found"
+                };
+            }
+
+            // ALREADY CLOSED
+            if (depositAccount.Status == "Closed")
+            {
+                return new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "Account already closed"
+                };
+            }
+
+            // ONLY FD / RD
+            if (
+                depositAccount.AccountType != "Fixed Deposit"
+                &&
+                depositAccount.AccountType != "Recurring Deposit"
+                  &&
+               depositAccount.AccountType != "Checking"
+            )
+            {
+                return new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "Only FD and FD and Checkings accounts can be closed"
+                };
+            }
+
+            // TARGET ACCOUNT
+            var targetAccount = await _context.Accounts
+                .FirstOrDefaultAsync(a =>
+                    a.AccountNumber == dto.TargetAccountNumber
+                    &&
+                    a.UserId == userId);
+
+            if (targetAccount == null)
+            {
+                return new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "Cannot transfer to other User"
+                };
+            }
+
+            // ONLY SAVINGS / CHECKING
+            if (
+                targetAccount.AccountType != "Savings"
+                &&
+                targetAccount.AccountType != "Checking"
+            )
+            {
+                return new ApiResponse<object>
+                {
+                    Success = false,
+                    Message =
+                        "Money can only be transferred to Savings or Checking account"
+                };
+            }
+
+            // SAME ACCOUNT BLOCK
+            if (
+                depositAccount.AccountNumber ==
+                targetAccount.AccountNumber
+            )
+            {
+                return new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "Cannot transfer to same account"
+                };
+            }
+
+            decimal payoutAmount = 0;
+            decimal principalAmount = 0;
+            decimal earnedInterest = 0;
+
+            // DAYS COMPLETED
+            int daysCompleted =
+                (DateTime.Now - depositAccount.CreatedAt).Days;
+
+            if (daysCompleted < 0)
+            {
+                daysCompleted = 0;
+            }
+
+            // =========================
+            // SAVINGS / CHECKING
+            // =========================
+            if (
+                depositAccount.AccountType == "Savings"
+                ||
+                depositAccount.AccountType == "Checking"
+            )
+            {
+                principalAmount =
+                    depositAccount.Balance;
+
+                earnedInterest = 0;
+
+                payoutAmount =
+                    depositAccount.Balance;
+            }
+
+            // =========================
+            // FIXED DEPOSIT
+            // =========================
+            else if (
+                depositAccount.AccountType ==
+                "Fixed Deposit"
+            )
+            {
+                decimal principal =
+                    depositAccount.Balance;
+
+                decimal rate =
+                    depositAccount.InterestRate;
+
+                int tenureMonths =
+                    depositAccount.TenureMonths ?? 12;
+
+                int totalDays =
+                    tenureMonths * 30;
+
+                principalAmount = principal;
+
+                if (daysCompleted >= totalDays)
+                {
+                    payoutAmount =
+                        depositAccount.MaturityAmount
+                        ?? principal;
+
+                    earnedInterest =
+                        payoutAmount - principal;
+                }
+                else
+                {
+                    earnedInterest =
+                        (
+                            principal
+                            * rate
+                            * daysCompleted
+                        )
+                        / (365 * 100);
+
+                    payoutAmount =
+                        principal + earnedInterest;
+                }
+            }
+
+            // =========================
+            // RECURRING DEPOSIT
+            // =========================
+            else if (
+    depositAccount.AccountType ==
+    "Recurring Deposit"
+)
+            {
+                decimal rate =
+                    depositAccount.InterestRate;
+
+                principalAmount =
+                    depositAccount.Balance;
+
+                earnedInterest = 0;
+
+                var installments = await _context.Transactions
+                    .Where(t =>
+                        t.AccountId == depositAccount.Id
+                        &&
+                        t.Type == "Credit"
+                    )
+                    .OrderBy(t => t.CreatedAt)
+                    .ToListAsync();
+
+                for (int i = 0; i < installments.Count; i++)
+                {
+                    var installment = installments[i];
+
+                    // CHECK IF NEXT INSTALLMENT EXISTS
+                    bool hasNext = (i < installments.Count - 1);
+
+                    if (!hasNext)
+                        continue;
+
+                    // FIXED 1 MONTH INTEREST ONLY
+                    decimal interest =
+                        (installment.Amount * rate * 1)
+                        / (12 * 100);
+
+                    earnedInterest += interest;
+                }
+
+                payoutAmount =
+                    principalAmount + earnedInterest;
+            }
+        
+        
+
+            // ROUNDING
+            payoutAmount =
+                Math.Round(payoutAmount, 2);
+
+            earnedInterest =
+                Math.Round(earnedInterest, 2);
+
+            principalAmount =
+                Math.Round(principalAmount, 2);
+
+            // TRANSFER MONEY
+            targetAccount.Balance += payoutAmount;
+
+            targetAccount.LastTransactionDate =
+                DateTime.Now;
+
+            // CLOSE ACCOUNT
+            depositAccount.Status = "Closed";
+
+            depositAccount.ClosedAt =
+                DateTime.Now;
+
+            // STORE FINAL PAYOUT
+            depositAccount.Balance = 0;
+
+            // TRANSACTION ENTRY
+            // TRANSACTION ENTRY FOR TARGET ACCOUNT
+            var transaction = new Transaction
+            {
+                AccountId = targetAccount.Id,
+
+                Type = "Credit",
+
+                Amount = payoutAmount,
+
+                Description =
+                    $"{depositAccount.AccountType} Closure Amount Received",
+
+                BalanceAfter = targetAccount.Balance,
+
+                CreatedAt = DateTime.Now,
+
+                FromAccountNumber =
+                    depositAccount.AccountNumber,
+
+                ToAccountNumber =
+                    targetAccount.AccountNumber
+            };
+
+            _context.Transactions.Add(transaction);
+
+
+            // ADD THIS FOR CLOSED ACCOUNT STATEMENT
+            var closureTransaction = new Transaction
+            {
+                AccountId = depositAccount.Id,
+
+                Type = "Debit",
+
+                Amount = payoutAmount,
+
+                Description =
+                    $"{depositAccount.AccountType} Closed and transferred to {targetAccount.AccountNumber}",
+
+                BalanceAfter = 0,
+
+                CreatedAt = DateTime.Now,
+
+                FromAccountNumber =
+                    depositAccount.AccountNumber,
+
+                ToAccountNumber =
+                    targetAccount.AccountNumber
+            };
+
+            _context.Transactions.Add(closureTransaction);
+
+           
+
+            await _context.SaveChangesAsync();
+
+            return new ApiResponse<object>
+            {
+                Success = true,
+                Message = "Deposit closed successfully",
+
+                Data = new
+                {
+                    transactionId =
+                        transaction.TransactionId,
+
+                    principal =
+                        principalAmount,
+
+                    earnedInterest =
+                        earnedInterest,
+
+                    amount =
+                        payoutAmount,
+
+                    targetAccount =
+                        targetAccount.AccountNumber,
+
+                    closedAt =
+                        depositAccount.ClosedAt
+                }
+            };
+        }
+
+        public async Task<ApiResponse<object>> DepositMoney(
+    DepositDto dto,
+    int userId)
+        {
+            var account = await _context.Accounts
+                .FirstOrDefaultAsync(a =>
+                    a.AccountNumber == dto.AccountNumber
+                    &&
+                    a.UserId == userId);
+
+            if (account == null)
+            {
+                return new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "Account not found"
+                };
+            }
+            // CLOSED ACCOUNT VALIDATION
+            if (account.Status == "Closed")
+            {
+                return new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "Cannot perform transactions on closed account"
+                };
+            }
+
+            // ONLY SAVINGS / CHECKING / RD
+            if (
+                account.AccountType == "Fixed Deposit"
+            )
+            {
+                return new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "Deposit not allowed for FD"
+                };
+            }
+
+            if (dto.Amount <= 0)
+            {
+                return new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "Amount must be greater than 0"
+                };
+            }
+            if (dto.Amount < 100)
+            {
+                return new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "Minimum deposit amount is ₹100"
+                };
+            }
+
+            if (dto.Amount > 100000)
+            {
+                return new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "Maximum deposit amount is ₹100000"
+                };
+            }
+
+            // UPDATE BALANCE
+            account.Balance += dto.Amount;
+
+            account.LastTransactionDate =
+                DateTime.Now;
+
+            // RD INSTALLMENT UPDATE
+            if (
+                account.AccountType ==
+                "Recurring Deposit"
+            )
+            {
+                account.PaidInstallments += 1;
+
+                account.RemainingInstallments -= 1;
+            }
+
+            // TRANSACTION
+            var transaction = new Transaction
+            {
+                AccountId = account.Id,
+
+                Type = "Credit",
+
+                Amount = dto.Amount,
+
+                Description = "Cash Deposit",
+
+                BalanceAfter = account.Balance,
+
+                CreatedAt = DateTime.Now,
+
+                ToAccountNumber =
+                    account.AccountNumber
+            };
+
+            _context.Transactions.Add(transaction);
+
+            await _context.SaveChangesAsync();
+
+            return new ApiResponse<object>
+            {
+                Success = true,
+                Message = "Deposit successful",
+
+                Data = new
+                {
+                    transactionId =
+                        transaction.TransactionId,
+
+                    amount =
+                        dto.Amount,
+
+                    balance =
+                        account.Balance
+                }
+            };
+        }
+
+        public async Task<ApiResponse<object>> GetAccountByNumber(
+    string accountNumber,
+    int userId)
+        {
+            var account = await _context.Accounts
+                .FirstOrDefaultAsync(a =>
+                    a.AccountNumber == accountNumber
+                    &&
+                    a.UserId == userId);
+
+            if (account == null)
+            {
+                return new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "Account not found"
+                };
+            }
+            // CLOSED ACCOUNT VALIDATION
+            if (account.Status == "Closed")
+            {
+                return new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "This account is closed"
+                };
+            }
+
+            return new ApiResponse<object>
+            {
+                Success = true,
+
+                Data = new
+                {
+                    accountNumber = account.AccountNumber,
+
+                    accountType = account.AccountType,
+
+                    availableBalance = account.Balance,
+
+                    status = account.Status,
+
+                    createdAt = account.CreatedAt,
+
+                    interestRate = account.InterestRate,
+
+                    maturityAmount = account.MaturityAmount,
+
+                    tenureMonths = account.TenureMonths
+                }
+            };
         }
 
         private ApiResponse Fail(string msg) =>

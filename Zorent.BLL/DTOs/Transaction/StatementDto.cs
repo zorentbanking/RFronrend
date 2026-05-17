@@ -6,6 +6,7 @@ namespace Zorent.BLL.DTOs.Transaction
     public class StatementDto
     {
         // ACCOUNT DETAILS
+        public DateTime CreatedAt { get; set; }
         public string CustomerName { get; set; } = string.Empty;
 
         public int CustomerId { get; set; }

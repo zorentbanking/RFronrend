@@ -78,7 +78,7 @@ namespace Zorent.API.Controllers
             var result =
                 await _authService.ForgotPassword(dto);
 
-            if (result == "User not found")
+            if (result == "Email is not registerd!!")
             {
                 return BadRequest(new
                 {
@@ -214,6 +214,8 @@ namespace Zorent.API.Controllers
                 success = true
             });
         }
+
+
 
 
     }

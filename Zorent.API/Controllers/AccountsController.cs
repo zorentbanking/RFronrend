@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Zorent.BLL.DTOs.Account;
 using Zorent.BLL.Interfaces;
+using Zorent.BLL.Services;
 using Zorent.Domain.Entities;
 
 namespace Zorent.API.Controllers
@@ -31,6 +32,52 @@ namespace Zorent.API.Controllers
         {
             var userId = int.Parse(User.FindFirst("UserId")!.Value);
             return Ok(await _service.GetUserAccounts(userId));
+        }
+        [HttpPost("close-deposit")]
+        public async Task<IActionResult> CloseDeposit(
+    CloseDepositDto dto)
+        {
+            var userId =
+     int.Parse(User.FindFirst("UserId")!.Value);
+
+            var result =
+                await _service.CloseDeposit(dto, userId);
+
+            if (!result.Success)
+            {
+                return BadRequest(result);
+            }
+
+            return Ok(result);
+        }
+
+        [HttpPost("deposit")]
+        public async Task<IActionResult> Deposit(
+    DepositDto dto)
+        {
+            var userId =
+     int.Parse(User.FindFirst("UserId")!.Value);
+
+            var result =
+                await _service.DepositMoney(
+                    dto,
+                    userId);
+
+            return Ok(result);
+        }
+        [HttpGet("{accountNumber}")]
+        public async Task<IActionResult> GetAccount(
+    string accountNumber)
+        {
+            var userId =
+                int.Parse(User.FindFirst("UserId")!.Value);
+
+            var result =
+                await _service.GetAccountByNumber(
+                    accountNumber,
+                    userId);
+
+            return Ok(result);
         }
     }
 }

@@ -56,6 +56,9 @@ namespace Zorent.DAL.Repositories
             return await _context.Users
                 .AnyAsync(x => x.Username == username);
         }
+
+        
+
     }
 }
 

@@ -17,5 +17,6 @@ namespace Zorent.BLL.DTOs.Account
         public string Status { get; set; } = string.Empty;
 
         public DateTime CreatedAt { get; set; }
+        public DateTime? ClosedAt { get; set; }
     }
 }
