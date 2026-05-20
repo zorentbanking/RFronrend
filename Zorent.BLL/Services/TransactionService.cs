@@ -216,8 +216,7 @@ namespace Zorent.BLL.Services
         {
             // GET ONLY LOGGED-IN USER ACCOUNTS
             var userAccountIds = await _context.Accounts
-                .Where(a => a.UserId == userId &&
-        a.Status != "Closed")
+                .Where(a => a.UserId == userId)
                 .Select(a => a.Id)
                 .ToListAsync();
 
@@ -284,8 +283,7 @@ namespace Zorent.BLL.Services
  )
         {
             var userAccountIds = await _context.Accounts
-     .Where(a => a.UserId == userId &&
-        a.Status != "Closed")
+     .Where(a => a.UserId == userId)
      .Select(a => a.Id)
      .ToListAsync();
 
@@ -319,7 +317,7 @@ namespace Zorent.BLL.Services
             var sb = new StringBuilder();
 
             // Header
-            sb.AppendLine("TransactionId,Type,Amount,Description,Date,BalanceAfter");
+            sb.AppendLine("TransactionId,Type,Amount,Description,Date,Balance");
 
             foreach (var t in data)
             {
@@ -349,10 +347,7 @@ namespace Zorent.BLL.Services
 
             var transactions = await _context.Transactions
      .Where(t =>
-         t.AccountId == account.Id
-         ||
-         t.ToAccountNumber == account.AccountNumber
-     )
+         t.AccountId == account.Id)
      .OrderByDescending(t => t.CreatedAt)
      .Select(t => new StatementTransactionDto
      {

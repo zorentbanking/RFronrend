@@ -43,7 +43,7 @@ namespace Zorent.Domain.Entities
 
         public int? RemainingInstallments { get; set; }
 
-        public decimal MonthlyInstallment { get; set; }
+        public decimal MonthlyInstallment { get; set; } = 0;
 
         public DateTime? ClosedAt { get; set; }
         public User User { get; set; } = default!;

@@ -121,21 +121,8 @@ namespace Zorent.BLL.Services
                         );
 
                     // RD TOTAL INVESTMENT
-                    decimal P = dto.InitialDeposit;
-
-                    int N = dto.TenureMonths.Value;
-
-                    decimal R = interestRate;
-
-                    decimal maturity =
-                        P * N +
-                        (
-                            P * N * (N + 1) * R
-                        )
-                        /
-                        (2 * 12 * 100);
-
-                    maturityAmount = maturity;
+                    // RD TOTAL INVESTMENT (DO NOT PRE-CALCULATE INTEREST HERE)
+                    maturityAmount = 0;
 
                     break;
             }
@@ -219,19 +206,23 @@ namespace Zorent.BLL.Services
 
                 PaidInstallments =
     dto.Type == "Recurring Deposit"
-        ? 0
+        ? 1
         : 0,
 
                 RemainingInstallments =
     dto.Type == "Recurring Deposit"
-        ? dto.TenureMonths
+        ? dto.TenureMonths - 1
         : null,
 
 
                 MonthlyInstallment =
-    dto.Type == "Recurring Deposit"
-        ? dto.InitialDeposit
-        : 0
+dto.Type == "Recurring Deposit"
+    ? (
+        dto.MonthlyInstallment.HasValue
+            ? dto.MonthlyInstallment.Value
+            : dto.InitialDeposit
+      )
+    : 0
 
             };
 
@@ -350,8 +341,11 @@ namespace Zorent.BLL.Services
                     AccountNumber = a.AccountNumber,
 
                     AccountType = a.AccountType,
-
-                    Balance = a.Balance,
+                    Balance =
+    a.AccountType == "Recurring Deposit"
+    && a.Status != "Closed"
+        ? a.MonthlyInstallment * a.PaidInstallments
+        : a.Balance,
 
                     Status = a.Status,
 
@@ -380,7 +374,7 @@ namespace Zorent.BLL.Services
             {
                 return;
             }
-           
+
             // GET LAST TRANSACTION
             var lastTransaction = await _context.Transactions
                 .Where(t => t.AccountId == accountId)
@@ -442,6 +436,8 @@ namespace Zorent.BLL.Services
                 depositAccount.AccountType != "Recurring Deposit"
                   &&
                depositAccount.AccountType != "Checking"
+                &&
+                   depositAccount.AccountType != "Savings"
             )
             {
                 return new ApiResponse<object>
@@ -511,6 +507,9 @@ namespace Zorent.BLL.Services
             // =========================
             // SAVINGS / CHECKING
             // =========================
+            // =========================
+            // SAVINGS / CHECKING
+            // =========================
             if (
                 depositAccount.AccountType == "Savings"
                 ||
@@ -520,10 +519,25 @@ namespace Zorent.BLL.Services
                 principalAmount =
                     depositAccount.Balance;
 
-                earnedInterest = 0;
+                // CHECKING HAS NO INTEREST
+                if (depositAccount.AccountType == "Checking")
+                {
+                    earnedInterest = 0;
+                }
+                else
+                {
+                    // SAVINGS INTEREST
+                    earnedInterest =
+                        (
+                            depositAccount.Balance *
+                            depositAccount.InterestRate *
+                            daysCompleted
+                        )
+                        / (365 * 100);
+                }
 
                 payoutAmount =
-                    depositAccount.Balance;
+                    principalAmount + earnedInterest;
             }
 
             // =========================
@@ -547,6 +561,8 @@ namespace Zorent.BLL.Services
                     tenureMonths * 30;
 
                 principalAmount = principal;
+
+               
 
                 if (daysCompleted >= totalDays)
                 {
@@ -574,52 +590,54 @@ namespace Zorent.BLL.Services
 
             // =========================
             // RECURRING DEPOSIT
-            // =========================
             else if (
-    depositAccount.AccountType ==
-    "Recurring Deposit"
-)
+                depositAccount.AccountType != null &&
+                depositAccount.AccountType.Trim().Equals(
+                    "Recurring Deposit",
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
             {
-                decimal rate =
-                    depositAccount.InterestRate;
+                decimal monthly = depositAccount.MonthlyInstallment;
+                int n = depositAccount.PaidInstallments;
+                decimal rate = depositAccount.InterestRate;
 
-                principalAmount =
-                    depositAccount.Balance;
-
-                earnedInterest = 0;
-
-                var installments = await _context.Transactions
-                    .Where(t =>
-                        t.AccountId == depositAccount.Id
-                        &&
-                        t.Type == "Credit"
-                    )
-                    .OrderBy(t => t.CreatedAt)
-                    .ToListAsync();
-
-                for (int i = 0; i < installments.Count; i++)
+                if (monthly <= 0 || n <= 0)
                 {
-                    var installment = installments[i];
+                    principalAmount =
+                        depositAccount.Balance;
 
-                    // CHECK IF NEXT INSTALLMENT EXISTS
-                    bool hasNext = (i < installments.Count - 1);
+                    earnedInterest = 0;
 
-                    if (!hasNext)
-                        continue;
-
-                    // FIXED 1 MONTH INTEREST ONLY
-                    decimal interest =
-                        (installment.Amount * rate * 1)
-                        / (12 * 100);
-
-                    earnedInterest += interest;
+                    payoutAmount =
+                        depositAccount.Balance;
                 }
+                else
+                {
+                    // ✅ TRUE PRINCIPAL = ACTUAL MONEY DEPOSITED
+                    principalAmount = monthly * n;
 
-                payoutAmount =
-                    principalAmount + earnedInterest;
+                    // ✅ RD INTEREST (STANDARD FORMULA)
+                    DateTime firstInterestDate =
+     depositAccount.InstallmentDate!.Value.Date;
+
+                    if (
+           (DateTime.Now - depositAccount.CreatedAt).TotalDays < 30)
+                    {
+                        earnedInterest = 0;
+                    }
+                    else
+                    {
+                        earnedInterest =
+                            (monthly * n * (n + 1) * rate)
+                            / (2 * 12 * 100);
+                    }
+
+                    payoutAmount =
+                        principalAmount + earnedInterest;
+                }
             }
-        
-        
+
 
             // ROUNDING
             payoutAmount =
@@ -698,7 +716,7 @@ namespace Zorent.BLL.Services
 
             _context.Transactions.Add(closureTransaction);
 
-           
+
 
             await _context.SaveChangesAsync();
 
@@ -797,20 +815,142 @@ namespace Zorent.BLL.Services
             }
 
             // UPDATE BALANCE
-            account.Balance += dto.Amount;
+
 
             account.LastTransactionDate =
                 DateTime.Now;
 
-            // RD INSTALLMENT UPDATE
-            if (
-                account.AccountType ==
-                "Recurring Deposit"
-            )
-            {
-                account.PaidInstallments += 1;
 
-                account.RemainingInstallments -= 1;
+            // RD INSTALLMENT UPDATE
+            if (account.AccountType == "Recurring Deposit")
+            {
+                // ALL INSTALLMENTS COMPLETED
+                if (
+                    account.PaidInstallments >=
+                    account.TotalInstallments
+                )
+                {
+                    return new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = "All installments already completed"
+                    };
+                }
+
+                DateTime today = DateTime.Today;
+
+                int installmentDay =
+                    account.InstallmentDate?.Day ?? 1;
+
+                // NEXT DUE MONTH
+                DateTime nextInstallmentMonth =
+                    account.CreatedAt
+                        .AddMonths(account.PaidInstallments);
+
+                // DUE DATE
+                DateTime allowedStartDate =
+                    new DateTime(
+                        nextInstallmentMonth.Year,
+                        nextInstallmentMonth.Month,
+                        installmentDay
+                    );
+
+                // 2-DAY WINDOW
+                DateTime allowedEndDate =
+                    allowedStartDate.AddDays(2);
+
+                // BEFORE WINDOW
+                if (today < allowedStartDate)
+                {
+                    return new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message =
+                            $" This months Installment is Done, Next installment allowed from {allowedStartDate:dd MMM yyyy}"
+                    };
+                }
+
+                // CALCULATE HOW MANY INSTALLMENTS MISSED
+                int installmentsToPay = 1;
+
+                DateTime tempDate = allowedStartDate;
+
+                while (today > tempDate.AddDays(2))
+                {
+                    installmentsToPay++;
+
+                    tempDate =
+                        tempDate.AddMonths(1);
+                }
+
+                // PREVENT EXCEEDING TOTAL INSTALLMENTS
+                if (
+                    account.PaidInstallments +
+                    installmentsToPay >
+                    account.TotalInstallments
+                )
+                {
+                    installmentsToPay =
+                        account.TotalInstallments.Value -
+                        account.PaidInstallments;
+                }
+
+                // REQUIRED AMOUNT
+                decimal requiredAmount =
+                    account.MonthlyInstallment *
+                    installmentsToPay;
+
+                // EXACT AMOUNT VALIDATION
+                if (dto.Amount != requiredAmount)
+                {
+                    return new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message =
+                            $"You must pay ₹{requiredAmount} for {installmentsToPay} installment(s)"
+                    };
+                }
+
+                // CURRENT CYCLE WINDOW
+                DateTime currentCycleStart =
+                    tempDate;
+
+                DateTime currentCycleEnd =
+                    tempDate.AddDays(2);
+
+                // ALREADY PAID THIS CYCLE
+                bool alreadyPaid =
+                    await _context.Transactions.AnyAsync(t =>
+                        t.AccountId == account.Id &&
+                        t.Type == "Credit" &&
+                        t.Description == "Cash Deposit" &&
+                        t.CreatedAt.Date >= currentCycleStart.Date &&
+                        t.CreatedAt.Date <= currentCycleEnd.Date
+                    );
+
+                if (alreadyPaid)
+                {
+                    return new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message =
+                            $"Installment already paid. Next installment on {currentCycleStart.AddMonths(1):dd MMM yyyy}"
+                    };
+                }
+
+                // UPDATE INSTALLMENTS
+                account.PaidInstallments += installmentsToPay;
+
+                account.RemainingInstallments -= installmentsToPay;
+
+                // UPDATE BALANCE
+                account.Balance += dto.Amount;
+            }
+
+            else
+            {
+                // NORMAL ACCOUNTS
+                account.Balance += dto.Amount;
             }
 
             // TRANSACTION
@@ -903,7 +1043,114 @@ namespace Zorent.BLL.Services
 
                     maturityAmount = account.MaturityAmount,
 
-                    tenureMonths = account.TenureMonths
+                    tenureMonths = account.TenureMonths,
+
+                    // RD FIELDS
+                    paidInstallments = account.PaidInstallments,
+
+                    remainingInstallments = account.RemainingInstallments,
+
+                    monthlyInstallment = account.MonthlyInstallment,
+
+                    earnedInterest =
+                        account.AccountType == "Recurring Deposit"
+
+                        ? (
+
+                       (DateTime.Now - account.CreatedAt).TotalDays < 30
+
+                            ? 0
+
+                            : (
+
+                                account.MonthlyInstallment *
+
+                                account.PaidInstallments *
+
+                                (account.PaidInstallments + 1) *
+
+                                account.InterestRate
+
+                              ) / (2 * 12 * 100)
+
+                        )
+
+                        : account.AccountType == "Savings"
+
+                        ? (
+
+                         (DateTime.Now - account.CreatedAt).TotalDays < 30
+
+                            ? 0
+
+                            : (
+
+                            account.Balance *
+
+                            account.InterestRate *
+
+                            (DateTime.Now - account.CreatedAt).Days
+
+                          ) / (365 * 100) )
+
+                        : 0,
+                    amount =
+
+                    account.AccountType == "Recurring Deposit"
+
+                    ? (
+
+                        (account.MonthlyInstallment *
+                         account.PaidInstallments)
+
+                        +
+
+                        (
+
+                            (DateTime.Now - account.CreatedAt).TotalDays < 30
+
+                            ? 0
+
+                            : (
+
+                                account.MonthlyInstallment *
+
+                                account.PaidInstallments *
+
+                                (account.PaidInstallments + 1) *
+
+                                account.InterestRate
+
+                              ) / (2 * 12 * 100)
+
+                        )
+
+                    )
+
+                    : account.AccountType == "Savings"
+
+                    ? (
+                     (DateTime.Now - account.CreatedAt).TotalDays < 30
+
+                            ? 0
+
+                            : (
+
+                        account.Balance +
+
+                        (
+
+                            account.Balance *
+
+                            account.InterestRate *
+
+                            (DateTime.Now - account.CreatedAt).Days
+
+                        ) / (365 * 100)
+
+                    ) )
+
+                    : account.Balance
                 }
             };
         }

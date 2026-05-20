@@ -12,7 +12,7 @@ namespace Zorent.BLL.DTOs.Account
 
         public DateTime? InstallmentDate { get; set; }
 
-
+        public decimal? MonthlyInstallment { get; set; }
 
         public int? TenureMonths { get; set; }
     }
