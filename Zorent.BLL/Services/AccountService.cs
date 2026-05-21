@@ -629,8 +629,13 @@ dto.Type == "Recurring Deposit"
                     else
                     {
                         earnedInterest =
-                            (monthly * n * (n + 1) * rate)
-                            / (2 * 12 * 100);
+ (
+     principalAmount *
+     rate *
+     daysCompleted
+ )
+ /
+ (365 * 100);
                     }
 
                     payoutAmount =
@@ -842,38 +847,48 @@ dto.Type == "Recurring Deposit"
                 int installmentDay =
                     account.InstallmentDate?.Day ?? 1;
 
-                // NEXT DUE MONTH
-                DateTime nextInstallmentMonth =
-                    account.CreatedAt
-                        .AddMonths(account.PaidInstallments);
-
-                // DUE DATE
-                DateTime allowedStartDate =
+                // FIRST INSTALLMENT CYCLE
+                DateTime firstInstallmentDate =
                     new DateTime(
-                        nextInstallmentMonth.Year,
-                        nextInstallmentMonth.Month,
+                        account.CreatedAt.Year,
+                        account.CreatedAt.Month,
                         installmentDay
                     );
 
-                // 2-DAY WINDOW
-                DateTime allowedEndDate =
-                    allowedStartDate.AddDays(2);
+                // IF ACCOUNT CREATED AFTER INSTALLMENT DAY
+                if (account.CreatedAt.Day > installmentDay)
+                {
+                    firstInstallmentDate =
+                        firstInstallmentDate.AddMonths(1);
+                }
 
-                // BEFORE WINDOW
-                if (today < allowedStartDate)
+                // NEXT INSTALLMENT DATE
+                DateTime nextInstallmentDate =
+                    firstInstallmentDate.AddMonths(
+                        account.PaidInstallments
+                    );
+
+                // ALLOW ONLY FROM INSTALLMENT DATE
+                if (today < nextInstallmentDate)
                 {
                     return new ApiResponse<object>
                     {
                         Success = false,
                         Message =
-                            $" This months Installment is Done, Next installment allowed from {allowedStartDate:dd MMM yyyy}"
+                            $" Installment already paid, Next installment can be paid from {nextInstallmentDate:dd MMM yyyy}"
                     };
                 }
+
+                // 2-DAY PAYMENT WINDOW
+                DateTime allowedEndDate =
+                    nextInstallmentDate.AddDays(2);
+
+                
 
                 // CALCULATE HOW MANY INSTALLMENTS MISSED
                 int installmentsToPay = 1;
 
-                DateTime tempDate = allowedStartDate;
+                DateTime tempDate = nextInstallmentDate;
 
                 while (today > tempDate.AddDays(2))
                 {
@@ -934,7 +949,7 @@ dto.Type == "Recurring Deposit"
                     {
                         Success = false,
                         Message =
-                            $"Installment already paid. Next installment on {currentCycleStart.AddMonths(1):dd MMM yyyy}"
+                            $" Installment already paid. Next installment on {currentCycleStart.AddMonths(1):dd MMM yyyy}"
                     };
                 }
 
@@ -1062,16 +1077,14 @@ dto.Type == "Recurring Deposit"
                             ? 0
 
                             : (
-
-                                account.MonthlyInstallment *
-
-                                account.PaidInstallments *
-
-                                (account.PaidInstallments + 1) *
-
-                                account.InterestRate
-
-                              ) / (2 * 12 * 100)
+    (account.MonthlyInstallment * account.PaidInstallments)
+    *
+    account.InterestRate
+    *
+    (DateTime.Now - account.CreatedAt).Days
+)
+/
+(365 * 100)
 
                         )
 
@@ -1112,16 +1125,14 @@ dto.Type == "Recurring Deposit"
                             ? 0
 
                             : (
-
-                                account.MonthlyInstallment *
-
-                                account.PaidInstallments *
-
-                                (account.PaidInstallments + 1) *
-
-                                account.InterestRate
-
-                              ) / (2 * 12 * 100)
+    (account.MonthlyInstallment * account.PaidInstallments)
+    *
+    account.InterestRate
+    *
+    (DateTime.Now - account.CreatedAt).Days
+)
+/
+(365 * 100)
 
                         )
 

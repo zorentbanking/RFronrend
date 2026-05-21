@@ -47,6 +47,9 @@ namespace Zorent.BLL.Services
                     "Transactions are not allowed from Fixed Deposit accounts"
                 );
             }
+            if (dest.Status != "Active")
+                return Fail("Receivers Account is Closed");
+
             if (dest.AccountType == "Fixed Deposit")
             {
                 return Fail("Cannot Transfer to Fixed Deposit");
@@ -59,7 +62,7 @@ namespace Zorent.BLL.Services
 
 
             if (dest.Status != "Active")
-                return Fail("Destination Account is Closed");
+                return Fail("Receivers Account is Closed");
 
             if (source.Status != "Active")
             {
@@ -317,7 +320,7 @@ namespace Zorent.BLL.Services
             var sb = new StringBuilder();
 
             // Header
-            sb.AppendLine("TransactionId,Type,Amount,Description,Date,Balance");
+            sb.AppendLine("TransactionId,Type,Amount,Description,Date,Closed Balance");
 
             foreach (var t in data)
             {
