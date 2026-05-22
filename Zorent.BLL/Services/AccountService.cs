@@ -347,6 +347,16 @@ dto.Type == "Recurring Deposit"
         ? a.MonthlyInstallment * a.PaidInstallments
         : a.Balance,
 
+                    LastTransactionAmount =
+    _context.Transactions
+        .Where(t =>
+            t.AccountId == a.Id
+            && t.Amount > 0
+        )
+        .OrderByDescending(t => t.CreatedAt)
+        .Select(t => (decimal?)t.Amount)
+        .FirstOrDefault() ?? 0,
+
                     Status = a.Status,
 
                     CreatedAt = a.CreatedAt,
