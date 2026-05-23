@@ -1,11 +1,9 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-
 using Microsoft.EntityFrameworkCore;
-
-using Zorent.DAL.Data;
-
 using Zorent.BLL.DTOs;
+using Zorent.BLL.DTOs.Auth;
+using Zorent.DAL.Data;
 
 namespace Zorent.API.Controllers
 {
@@ -23,140 +21,263 @@ namespace Zorent.API.Controllers
             _context = context;
         }
 
+        // =====================================================
         // GET PROFILE
+        // =====================================================
+
         [HttpGet]
-        public async Task<IActionResult> GetProfile()
+
+        [ProducesResponseType(
+            typeof(SuccessResponseDto),
+            200)]
+
+        [ProducesResponseType(
+            typeof(ErrorResponseDto),
+            404)]
+
+        [ProducesResponseType(
+            typeof(ErrorResponseDto),
+            500)]
+
+        public async Task<IActionResult>
+            GetProfile()
         {
-            var username =
-                User.Identity?.Name;
-
-            var user =
-                await _context.Users
-                .FirstOrDefaultAsync(
-                    x => x.Username == username
-                );
-
-            if (user == null)
+            try
             {
-                return NotFound(new
+                var username =
+                    User.Identity?.Name;
+
+                var user =
+                    await _context.Users
+                    .FirstOrDefaultAsync(
+                        x => x.Username == username
+                    );
+
+                if (user == null)
                 {
-                    success = false,
-                    message = "User not found"
-                });
-            }
-
-            return Ok(new
-            {
-                success = true,
-
-                data = new
-                {
-                    fullName = user.FullName,
-
-                    username = user.Username,
-
-                    email = user.Email,
-
-                    phone = user.Phone,
-
-                    address = user.Address,
-
-                    dateOfBirth = user.DOB
+                    return NotFound(
+                        new ErrorResponseDto
+                        {
+                            Success = false,
+                            Message = "User not found"
+                        });
                 }
-            });
+
+                return Ok(
+                    new SuccessResponseDto
+                    {
+                        Success = true,
+
+                        Message =
+                            "Profile fetched successfully",
+
+                        Data = new
+                        {
+                            fullName = user.FullName,
+
+                            username = user.Username,
+
+                            email = user.Email,
+
+                            phone = user.Phone,
+
+                            address = user.Address,
+
+                            dateOfBirth = user.DOB
+                        }
+                    });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(
+                    500,
+                    new ErrorResponseDto
+                    {
+                        Success = false,
+                        Message = ex.Message
+                    });
+            }
         }
 
+
+        // =====================================================
         // UPDATE PROFILE
+        // =====================================================
+
         [HttpPut("update")]
-        public async Task<IActionResult> UpdateProfile(
-            [FromBody] UpdateProfileDto dto
-        )
+
+        [ProducesResponseType(
+            typeof(SuccessResponseDto),
+            200)]
+
+        [ProducesResponseType(
+            typeof(ErrorResponseDto),
+            404)]
+
+        [ProducesResponseType(
+            typeof(ErrorResponseDto),
+            500)]
+
+        public async Task<IActionResult>
+            UpdateProfile(
+                [FromBody]
+                UpdateProfileDto dto
+            )
         {
-            var username =
-                User.Identity?.Name;
-
-            var user =
-                await _context.Users
-                .FirstOrDefaultAsync(
-                    x => x.Username == username
-                );
-
-            if (user == null)
+            try
             {
-                return NotFound(new
+                var username =
+                    User.Identity?.Name;
+
+                var user =
+                    await _context.Users
+                    .FirstOrDefaultAsync(
+                        x => x.Username == username
+                    );
+
+                if (user == null)
                 {
-                    success = false,
-                    message = "User not found"
-                });
+                    return NotFound(
+                        new ErrorResponseDto
+                        {
+                            Success = false,
+                            Message = "User not found"
+                        });
+                }
+
+                user.FullName =
+                    dto.FullName;
+
+                user.Phone =
+                    dto.Phone;
+
+                user.Address =
+                    dto.Address;
+
+                user.DOB =
+                    dto.DateOfBirth;
+
+                await _context
+                    .SaveChangesAsync();
+
+                return Ok(
+                    new SuccessResponseDto
+                    {
+                        Success = true,
+
+                        Message =
+                            "Profile updated successfully",
+
+                        Data = ""
+                    });
             }
-
-            // UPDATE DATA
-            user.FullName =
-                dto.FullName;
-
-            user.Phone =
-                dto.Phone;
-
-            user.Address =
-                dto.Address;
-
-            user.DOB =
-                dto.DateOfBirth;
-
-            await _context.SaveChangesAsync();
-
-            return Ok(new
+            catch (Exception ex)
             {
-                success = true,
-
-                message =
-                    "Profile updated successfully"
-            });
+                return StatusCode(
+                    500,
+                    new ErrorResponseDto
+                    {
+                        Success = false,
+                        Message = ex.Message
+                    });
+            }
         }
+
+        // =====================================================
+        // CHANGE PASSWORD
+        // =====================================================
+
         [HttpPut("change-password")]
-        public async Task<IActionResult> ChangePassword(
-    ChangePasswordDto dto)
+
+        [ProducesResponseType(
+            typeof(SuccessResponseDto),
+            200)]
+
+        [ProducesResponseType(
+            typeof(ErrorResponseDto),
+            400)]
+
+        [ProducesResponseType(
+            typeof(ErrorResponseDto),
+            404)]
+
+        [ProducesResponseType(
+            typeof(ErrorResponseDto),
+            500)]
+
+        public async Task<IActionResult>
+            ChangePassword(
+                ChangePasswordDto dto
+            )
         {
-            var username = User.Identity?.Name;
-
-            var user = await _context.Users
-                .FirstOrDefaultAsync(x =>
-                    x.Username == username);
-
-            if (user == null)
+            try
             {
-                return NotFound();
-            }
+                var username =
+                    User.Identity?.Name;
 
-            // VERIFY CURRENT PASSWORD
-            bool isValid =
-                BCrypt.Net.BCrypt.Verify(
-                    dto.CurrentPassword,
-                    user.PasswordHash
-                );
+                var user =
+                    await _context.Users
+                    .FirstOrDefaultAsync(
+                        x => x.Username == username
+                    );
 
-            if (!isValid)
-            {
-                return BadRequest(new
+                if (user == null)
                 {
-                    success = false,
-                    message = "Current password is incorrect"
-                });
+                    return NotFound(
+                        new ErrorResponseDto
+                        {
+                            Success = false,
+                            Message = "User not found"
+                        });
+                }
+
+                bool isValid =
+                    BCrypt.Net.BCrypt.Verify(
+                        dto.CurrentPassword,
+                        user.PasswordHash
+                    );
+
+                if (!isValid)
+                {
+                    return BadRequest(
+                        new ErrorResponseDto
+                        {
+                            Success = false,
+                            Message =
+                                "Current password is incorrect"
+                        });
+                }
+
+                user.PasswordHash =
+                    BCrypt.Net.BCrypt
+                    .HashPassword(
+                        dto.NewPassword
+                    );
+
+                await _context
+                    .SaveChangesAsync();
+
+                return Ok(
+                    new SuccessResponseDto
+                    {
+                        Success = true,
+
+                        Message =
+                            "Password changed successfully",
+
+                        Data = ""
+                    });
             }
-
-            // HASH NEW PASSWORD
-            user.PasswordHash =
-                BCrypt.Net.BCrypt.HashPassword(
-                    dto.NewPassword
-                );
-
-            await _context.SaveChangesAsync();
-
-            return Ok(new
+            catch (Exception ex)
             {
-                success = true,
-                message = "Password changed successfully"
-            });
+                return StatusCode(
+                    500,
+                    new ErrorResponseDto
+                    {
+                        Success = false,
+                        Message = ex.Message
+                    });
+            }
         }
     }
 }

@@ -14,7 +14,7 @@ namespace Zorent.Common.Helpers
             _configuration = configuration;
         }
 
-        public async Task SendResetEmailAsync(
+        public virtual async Task SendResetEmailAsync(
             string toEmail,
             string resetLink)
         {

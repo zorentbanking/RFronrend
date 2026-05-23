@@ -1,222 +1,545 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
 using Zorent.BLL.DTOs.Auth;
 using Zorent.BLL.Interfaces;
+
+using Zorent.Common.Responses;
+
 using Zorent.DAL.Data;
-using Microsoft.EntityFrameworkCore;
 
 namespace Zorent.API.Controllers
 {
     [ApiController]
+
     [Route("api/auth")]
-    public class AuthController : ControllerBase
+
+    public class AuthController
+        : ControllerBase
     {
-        private readonly IAuthService _authService;
-        private readonly ApplicationDbContext _context;
-        public AuthController(IAuthService authService, ApplicationDbContext context)
+        private readonly IAuthService
+            _authService;
+
+        private readonly ApplicationDbContext
+            _context;
+
+        public AuthController(
+            IAuthService authService,
+            ApplicationDbContext context)
         {
             _authService = authService;
+
             _context = context;
         }
 
+        // =====================================================
+        // REGISTER
+        // =====================================================
+
         [HttpPost("register")]
-        public async Task<IActionResult> Register(RegisterDto dto)
-        {
-            var result = await _authService.Register(dto);
 
-            if (!result.Success)
-                return BadRequest(result);
+        [ProducesResponseType(
+            typeof(SuccessResponseDto),
+            StatusCodes.Status200OK)]
 
-            return Ok(result);
-        }
-        [HttpPost("login")]
-        public async Task<IActionResult> Login(LoginDto dto)
+        [ProducesResponseType(
+            typeof(ErrorResponseDto),
+            StatusCodes.Status400BadRequest)]
+
+        [ProducesResponseType(
+            typeof(ErrorResponseDto),
+            StatusCodes.Status500InternalServerError)]
+
+        public async Task<IActionResult>
+        Register(RegisterDto dto)
         {
             try
             {
-                var result = await _authService.Login(dto);
-                return Ok(result);
+                var result =
+                    await _authService
+                        .Register(dto);
+
+                if (!result.Success)
+                {
+                    return BadRequest(
+                        new ErrorResponseDto
+                        {
+                            Success = false,
+                            Message =
+                                result.Message
+                        });
+                }
+
+                return Ok(
+                    new SuccessResponseDto
+                    {
+                        Success = true,
+                        Message =
+                            result.Message,
+
+                        Data = result.Data
+                    });
             }
             catch (Exception ex)
             {
-                return BadRequest(new { message = ex.Message });
+                return StatusCode(
+                    500,
+
+                    new ErrorResponseDto
+                    {
+                        Success = false,
+
+                        Message =
+                            ex.InnerException?.Message
+                            ?? ex.Message
+                    });
             }
         }
-        [Authorize]
-        [HttpPost("logout")]
-        public async Task<IActionResult> Logout()
+
+        // =====================================================
+        // LOGIN
+        // =====================================================
+
+        [HttpPost("login")]
+
+        [ProducesResponseType(
+            typeof(SuccessResponseDto),
+            StatusCodes.Status200OK)]
+
+        [ProducesResponseType(
+            typeof(ErrorResponseDto),
+            StatusCodes.Status401Unauthorized)]
+
+        [ProducesResponseType(
+            typeof(ErrorResponseDto),
+            StatusCodes.Status500InternalServerError)]
+
+        public async Task<IActionResult>
+        Login(LoginDto dto)
         {
-            var username = User.Identity?.Name;
+            try
+            {
+                var result =
+                    await _authService
+                        .Login(dto);
 
-            if (string.IsNullOrEmpty(username))
-                return Unauthorized();
+                if (!result.Success)
+                {
+                    return Unauthorized(
+                        new ErrorResponseDto
+                        {
+                            Success = false,
 
-            await _authService.Logout(username);
+                            Message =
+                                result.Message
+                        });
+                }
 
-            return Ok("Logged out successfully");
+                return Ok(
+                    new SuccessResponseDto
+                    {
+                        Success = true,
+
+                        Message =
+                            result.Message,
+
+                        Data = new
+                        {
+                            accessToken =
+                                result.Data
+                                    ?.AccessToken,
+
+                            refreshToken =
+                                result.Data
+                                    ?.RefreshToken,
+
+                            id =
+                                result.Data
+                                    ?.Id,
+
+                            username =
+                                result.Data
+                                    ?.Username,
+
+                            fullName =
+                                result.Data
+                                    ?.FullName,
+
+                            email =
+                                result.Data
+                                    ?.Email,
+
+                            phone =
+                                result.Data
+                                    ?.Phone,
+
+                            address =
+                                result.Data
+                                    ?.Address
+                        }
+                    });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(
+                    500,
+
+                    new ErrorResponseDto
+                    {
+                        Success = false,
+
+                        Message =
+                            ex.InnerException?.Message
+                            ?? ex.Message
+                    });
+            }
         }
-        [HttpPost("refresh")]
-        public async Task<IActionResult> RefreshToken([FromBody] string refreshToken)
-        {
-            var result = await _authService.RefreshToken(refreshToken);
 
-            if (!result.Success)
-                return BadRequest(result);
+        // =====================================================
+        // FORGOT PASSWORD
+        // =====================================================
 
-            return Ok(result);
-        }
-        [Authorize]
-        [HttpGet("test")]
-        public IActionResult Test()
-        {
-            return Ok("You are authorized");
-        }
         [HttpPost("forgot-password")]
-        public async Task<IActionResult> ForgotPassword(
-    ForgotPasswordDto dto)
-        {
-            var result =
-                await _authService.ForgotPassword(dto);
 
-            if (result == "Email is not registerd!!")
+        [ProducesResponseType(
+            typeof(SuccessResponseDto),
+            StatusCodes.Status200OK)]
+
+        [ProducesResponseType(
+            typeof(ErrorResponseDto),
+            StatusCodes.Status400BadRequest)]
+
+        [ProducesResponseType(
+            typeof(ErrorResponseDto),
+            StatusCodes.Status500InternalServerError)]
+
+        public async Task<IActionResult>
+        ForgotPassword(
+            ForgotPasswordDto dto)
+        {
+            try
             {
-                return BadRequest(new
+                var result =
+                    await _authService
+                        .ForgotPassword(dto);
+
+                if (
+                    result ==
+                    "Email is not registerd!!"
+                )
                 {
-                    message = result
-                });
+                    return BadRequest(
+                        new ErrorResponseDto
+                        {
+                            Success = false,
+
+                            Message = result
+                        });
+                }
+
+                return Ok(
+                    new SuccessResponseDto
+                    {
+                        Success = true,
+
+                        Message = result
+                    });
             }
-            return Ok(new
+            catch (Exception ex)
             {
-                message = result
-            });
+                return StatusCode(
+                    500,
+
+                    new ErrorResponseDto
+                    {
+                        Success = false,
+
+                        Message =
+                            ex.InnerException?.Message
+                            ?? ex.Message
+                    });
+            }
         }
+
+        // =====================================================
+        // RESET PASSWORD
+        // =====================================================
+
         [HttpPost("reset-password")]
-        public async Task<IActionResult> ResetPassword(
-    [FromBody] ResetPasswordDto dto)
+
+        [ProducesResponseType(
+            typeof(SuccessResponseDto),
+            StatusCodes.Status200OK)]
+
+        [ProducesResponseType(
+            typeof(ErrorResponseDto),
+            StatusCodes.Status400BadRequest)]
+
+        [ProducesResponseType(
+            typeof(ErrorResponseDto),
+            StatusCodes.Status500InternalServerError)]
+
+        public async Task<IActionResult>
+        ResetPassword(
+            [FromBody]
+            ResetPasswordDto dto)
         {
-            var result =
-                await _authService.ResetPasswordAsync(dto);
-
-            if (result != "Password reset successful")
+            try
             {
-                return BadRequest(new
+                var result =
+                    await _authService
+                        .ResetPasswordAsync(
+                            dto
+                        );
+
+                if (
+                    result !=
+                    "Password reset successful"
+                )
                 {
-                    message = result
-                });
-            }
+                    return BadRequest(
+                        new ErrorResponseDto
+                        {
+                            Success = false,
 
-            return Ok(new
+                            Message = result
+                        });
+                }
+
+                return Ok(
+                    new SuccessResponseDto
+                    {
+                        Success = true,
+
+                        Message = result
+                    });
+            }
+            catch (Exception ex)
             {
-                message = result
-            });
+                return StatusCode(
+                    500,
+
+                    new ErrorResponseDto
+                    {
+                        Success = false,
+
+                        Message =
+                            ex.InnerException?.Message
+                            ?? ex.Message
+                    });
+            }
         }
+
+        // =====================================================
+        // VALIDATE ACCOUNT
+        // =====================================================
 
         [Authorize]
 
-        [HttpGet("validate-account/{accountNumber}")]
-        public async Task<IActionResult> ValidateAccount(
-           string accountNumber)
+        [HttpGet(
+            "validate-account/{accountNumber}"
+        )]
+
+        [ProducesResponseType(
+            typeof(SuccessResponseDto),
+            StatusCodes.Status200OK)]
+
+        [ProducesResponseType(
+            typeof(ErrorResponseDto),
+            StatusCodes.Status400BadRequest)]
+
+        [ProducesResponseType(
+            typeof(ErrorResponseDto),
+            StatusCodes.Status500InternalServerError)]
+
+        public async Task<IActionResult>
+        ValidateAccount(
+            string accountNumber)
         {
-            // CHECK EMPTY
-            if (string.IsNullOrWhiteSpace(accountNumber))
+            try
             {
-                return BadRequest(new
+                if (
+                    string.IsNullOrWhiteSpace(
+                        accountNumber
+                    )
+                )
                 {
-                    success = false,
-                    message = "Account number is required"
-                });
-            }
+                    return BadRequest(
+                        new ErrorResponseDto
+                        {
+                            Success = false,
 
-            // CHECK LENGTH
-            if (accountNumber.Length != 10)
-            {
-                return BadRequest(new
+                            Message =
+                                "Account number is required"
+                        });
+                }
+
+                if (
+                    accountNumber.Length != 10
+                )
                 {
-                    success = false,
-                    message =
-                        "Account number must be 10 digits"
-                });
-            }
+                    return BadRequest(
+                        new ErrorResponseDto
+                        {
+                            Success = false,
 
-            // CHECK NUMBERS ONLY
-            if (!accountNumber.All(char.IsDigit))
-            {
-                return BadRequest(new
+                            Message =
+                                "Account number must be 10 digits"
+                        });
+                }
+
+                if (
+                    !accountNumber.All(
+                        char.IsDigit
+                    )
+                )
                 {
-                    success = false,
-                    message =
-                        "Account number must contain only numbers"
-                });
-            }
+                    return BadRequest(
+                        new ErrorResponseDto
+                        {
+                            Success = false,
 
-            // FIND ACCOUNT
-            if (string.IsNullOrWhiteSpace(accountNumber))
-            {
-                return null;
-            }
+                            Message =
+                                "Account number must contain only numbers"
+                        });
+                }
 
-            var account = await _context.Accounts
-                .FirstOrDefaultAsync(a =>
-                    a.AccountNumber.Trim() == accountNumber.Trim()
-                );
+                var account =
+                    await _context.Accounts
+                        .FirstOrDefaultAsync(
+                            a =>
+                                a.AccountNumber
+                                    .Trim()
+                                ==
+                                accountNumber
+                                    .Trim()
+                        );
 
-            // ACCOUNT NOT FOUND
-            if (account == null)
-            {
-                return Ok(new
+                if (account == null)
                 {
-                    success = false,
-                    message = "Account does not exist"
-                });
-            }
+                    return Ok(
+                        new SuccessResponseDto
+                        {
+                            Success = false,
 
-            // SUCCESS
-            return Ok(new
+                            Message =
+                                "Account does not exist"
+                        });
+                }
+
+                return Ok(
+                    new SuccessResponseDto
+                    {
+                        Success = true,
+
+                        Message =
+                            "Account exists"
+                    });
+            }
+            catch (Exception ex)
             {
-                success = true,
-                message = "Account exists"
-            });
+                return StatusCode(
+                    500,
+
+                    new ErrorResponseDto
+                    {
+                        Success = false,
+
+                        Message =
+                            ex.InnerException?.Message
+                            ?? ex.Message
+                    });
+            }
         }
 
-        [HttpGet("validate-reset-token")]
-        public async Task<IActionResult> ValidateResetToken(
-    string token)
+        // =====================================================
+        // VALIDATE RESET TOKEN
+        // =====================================================
+
+        [HttpGet(
+            "validate-reset-token"
+        )]
+
+        [ProducesResponseType(
+            typeof(SuccessResponseDto),
+            StatusCodes.Status200OK)]
+
+        [ProducesResponseType(
+            typeof(ErrorResponseDto),
+            StatusCodes.Status400BadRequest)]
+
+        [ProducesResponseType(
+            typeof(ErrorResponseDto),
+            StatusCodes.Status500InternalServerError)]
+
+        public async Task<IActionResult>
+        ValidateResetToken(
+            string token)
         {
-            var user = await _context.Users
-                .FirstOrDefaultAsync(
-                    u => u.ResetToken == token
-                );
-
-            // TOKEN INVALID
-            if (user == null)
+            try
             {
-                return BadRequest(new
+                var user =
+                    await _context.Users
+                        .FirstOrDefaultAsync(
+                            u =>
+                                u.ResetToken
+                                == token
+                        );
+
+                if (user == null)
                 {
-                    success = false,
-                    message =
-                        "Reset link has expired or already been used"
-                });
-            }
+                    return BadRequest(
+                        new ErrorResponseDto
+                        {
+                            Success = false,
 
-            // TOKEN EXPIRED
-            if (user.ResetTokenExpiry == null ||
-                user.ResetTokenExpiry < DateTime.UtcNow)
-            {
-                return BadRequest(new
+                            Message =
+                                "Reset link has expired or already been used"
+                        });
+                }
+
+                if (
+                    user.ResetTokenExpiry
+                    == null
+                    ||
+                    user.ResetTokenExpiry
+                    < DateTime.UtcNow
+                )
                 {
-                    success = false,
-                    message = "Reset link has expired"
-                });
-            }
+                    return BadRequest(
+                        new ErrorResponseDto
+                        {
+                            Success = false,
 
-            return Ok(new
+                            Message =
+                                "Reset link has expired"
+                        });
+                }
+
+                return Ok(
+                    new SuccessResponseDto
+                    {
+                        Success = true,
+
+                        Message =
+                            "Valid token"
+                    });
+            }
+            catch (Exception ex)
             {
-                success = true
-            });
+                return StatusCode(
+                    500,
+
+                    new ErrorResponseDto
+                    {
+                        Success = false,
+
+                        Message =
+                            ex.InnerException?.Message
+                            ?? ex.Message
+                    });
+            }
         }
-
-
-
-
     }
 }

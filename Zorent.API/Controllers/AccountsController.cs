@@ -1,83 +1,456 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+
+using Swashbuckle.AspNetCore.Filters;
+
+using Zorent.API.Swagger;
+
 using Zorent.BLL.DTOs.Account;
+using Zorent.BLL.DTOs.Auth;
 using Zorent.BLL.Interfaces;
-using Zorent.BLL.Services;
-using Zorent.Domain.Entities;
 
 namespace Zorent.API.Controllers
 {
     [Authorize]
-    [ApiController]
-    [Route("api/accounts")]
-    public class AccountsController : ControllerBase
-    {
-        private readonly IAccountService _service;
 
-        public AccountsController(IAccountService service)
+    [ApiController]
+
+    [Route("api/accounts")]
+
+    public class AccountsController
+        : ControllerBase
+    {
+        private readonly IAccountService
+            _service;
+
+        public AccountsController(
+            IAccountService service)
         {
             _service = service;
         }
 
+        // =====================================================
+        // CREATE ACCOUNT
+        // =====================================================
+
         [HttpPost("create")]
-        public async Task<IActionResult> Create(CreateAccountDto dto)
-        {
-            var userId = int.Parse(User.FindFirst("UserId")!.Value);
-            return Ok(await _service.CreateAccount(dto, userId));
-        }
 
-        [Authorize]
-        [HttpGet("my")]
-        public async Task<IActionResult> Get()
-        {
-            var userId = int.Parse(User.FindFirst("UserId")!.Value);
-            return Ok(await _service.GetUserAccounts(userId));
-        }
-        [HttpPost("close-deposit")]
-        public async Task<IActionResult> CloseDeposit(
-    CloseDepositDto dto)
-        {
-            var userId =
-     int.Parse(User.FindFirst("UserId")!.Value);
+        [ProducesResponseType(
+            typeof(SuccessResponseDto),
+            StatusCodes.Status200OK)]
 
-            var result =
-                await _service.CloseDeposit(dto, userId);
+        [ProducesResponseType(
+            typeof(ErrorResponseDto),
+            StatusCodes.Status400BadRequest)]
 
-            if (!result.Success)
+        [ProducesResponseType(
+            typeof(ErrorResponseDto),
+            StatusCodes.Status500InternalServerError)]
+
+        [SwaggerResponseExample(
+            200,
+            typeof(SuccessResponseExample))]
+
+        [SwaggerResponseExample(
+            400,
+            typeof(ErrorResponseExample))]
+
+        [SwaggerResponseExample(
+            500,
+            typeof(ErrorResponseExample))]
+
+        public async Task<IActionResult>
+        Create(
+            [FromBody]
+            CreateAccountDto dto)
+        {
+            try
             {
-                return BadRequest(result);
-            }
+                var userId =
+                    int.Parse(
+                        User.FindFirst("UserId")!
+                            .Value);
 
-            return Ok(result);
+                var result =
+                    await _service
+                        .CreateAccount(
+                            dto,
+                            userId);
+
+                if (!result.Success)
+                {
+                    return BadRequest(
+                        new ErrorResponseDto
+                        {
+                            Success = false,
+
+                            Message =
+                                result.Message
+                        });
+                }
+
+                return Ok(
+                    new SuccessResponseDto
+                    {
+                        Success = true,
+
+                        Message =
+                            result.Message,
+
+                        Data =
+                            result.Data
+                    });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(
+                    500,
+
+                    new ErrorResponseDto
+                    {
+                        Success = false,
+
+                        Message =
+                            ex.InnerException?.Message
+                            ?? ex.Message
+                    });
+            }
         }
+
+        // =====================================================
+        // GET MY ACCOUNTS
+        // =====================================================
+
+        [HttpGet("my")]
+
+        [ProducesResponseType(
+            typeof(SuccessResponseDto),
+            StatusCodes.Status200OK)]
+
+        [ProducesResponseType(
+            typeof(ErrorResponseDto),
+            StatusCodes.Status401Unauthorized)]
+
+        [ProducesResponseType(
+            typeof(ErrorResponseDto),
+            StatusCodes.Status500InternalServerError)]
+
+        [SwaggerResponseExample(
+            200,
+            typeof(SuccessResponseExample))]
+
+        [SwaggerResponseExample(
+            401,
+            typeof(ErrorResponseExample))]
+
+        [SwaggerResponseExample(
+            500,
+            typeof(ErrorResponseExample))]
+
+        public async Task<IActionResult>
+        Get()
+        {
+            try
+            {
+                var userId =
+                    int.Parse(
+                        User.FindFirst("UserId")!
+                            .Value);
+
+                var result =
+                    await _service
+                        .GetUserAccounts(
+                            userId);
+
+                return Ok(
+                    new SuccessResponseDto
+                    {
+                        Success = true,
+
+                        Message =
+                            "Accounts fetched successfully",
+
+                        Data =
+                            result.Data
+                    });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(
+                    500,
+
+                    new ErrorResponseDto
+                    {
+                        Success = false,
+
+                        Message =
+                            ex.InnerException?.Message
+                            ?? ex.Message
+                    });
+            }
+        }
+
+        // =====================================================
+        // CLOSE DEPOSIT
+        // =====================================================
+
+        [HttpPost("close-deposit")]
+
+        [ProducesResponseType(
+            typeof(SuccessResponseDto),
+            StatusCodes.Status200OK)]
+
+        [ProducesResponseType(
+            typeof(ErrorResponseDto),
+            StatusCodes.Status400BadRequest)]
+
+        [ProducesResponseType(
+            typeof(ErrorResponseDto),
+            StatusCodes.Status500InternalServerError)]
+
+        [SwaggerResponseExample(
+            200,
+            typeof(SuccessResponseExample))]
+
+        [SwaggerResponseExample(
+            400,
+            typeof(ErrorResponseExample))]
+
+        [SwaggerResponseExample(
+            500,
+            typeof(ErrorResponseExample))]
+
+        public async Task<IActionResult>
+        CloseDeposit(
+            [FromBody]
+            CloseDepositDto dto)
+        {
+            try
+            {
+                var userId =
+                    int.Parse(
+                        User.FindFirst("UserId")!
+                            .Value);
+
+                var result =
+                    await _service
+                        .CloseDeposit(
+                            dto,
+                            userId);
+
+                if (!result.Success)
+                {
+                    return BadRequest(
+                        new ErrorResponseDto
+                        {
+                            Success = false,
+
+                            Message =
+                                result.Message
+                        });
+                }
+
+                return Ok(
+                    new SuccessResponseDto
+                    {
+                        Success = true,
+
+                        Message =
+                            result.Message,
+
+                        Data =
+                            result.Data
+                    });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(
+                    500,
+
+                    new ErrorResponseDto
+                    {
+                        Success = false,
+
+                        Message =
+                            ex.InnerException?.Message
+                            ?? ex.Message
+                    });
+            }
+        }
+
+        // =====================================================
+        // DEPOSIT MONEY
+        // =====================================================
 
         [HttpPost("deposit")]
-        public async Task<IActionResult> Deposit(
-    DepositDto dto)
+
+        [ProducesResponseType(
+            typeof(SuccessResponseDto),
+            StatusCodes.Status200OK)]
+
+        [ProducesResponseType(
+            typeof(ErrorResponseDto),
+            StatusCodes.Status400BadRequest)]
+
+        [ProducesResponseType(
+            typeof(ErrorResponseDto),
+            StatusCodes.Status500InternalServerError)]
+
+        [SwaggerResponseExample(
+            200,
+            typeof(SuccessResponseExample))]
+
+        [SwaggerResponseExample(
+            400,
+            typeof(ErrorResponseExample))]
+
+        [SwaggerResponseExample(
+            500,
+            typeof(ErrorResponseExample))]
+
+        public async Task<IActionResult>
+        Deposit(
+            [FromBody]
+            DepositDto dto)
         {
-            var userId =
-     int.Parse(User.FindFirst("UserId")!.Value);
+            try
+            {
+                var userId =
+                    int.Parse(
+                        User.FindFirst("UserId")!
+                            .Value);
 
-            var result =
-                await _service.DepositMoney(
-                    dto,
-                    userId);
+                var result =
+                    await _service
+                        .DepositMoney(
+                            dto,
+                            userId);
 
-            return Ok(result);
+                if (!result.Success)
+                {
+                    return BadRequest(
+                        new ErrorResponseDto
+                        {
+                            Success = false,
+
+                            Message =
+                                result.Message
+                        });
+                }
+
+                return Ok(
+                    new SuccessResponseDto
+                    {
+                        Success = true,
+
+                        Message =
+                            result.Message,
+
+                        Data =
+                            result.Data
+                    });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(
+                    500,
+
+                    new ErrorResponseDto
+                    {
+                        Success = false,
+
+                        Message =
+                            ex.InnerException?.Message
+                            ?? ex.Message
+                    });
+            }
         }
+
+        // =====================================================
+        // GET ACCOUNT BY NUMBER
+        // =====================================================
+
         [HttpGet("{accountNumber}")]
-        public async Task<IActionResult> GetAccount(
-    string accountNumber)
+
+        [ProducesResponseType(
+            typeof(SuccessResponseDto),
+            StatusCodes.Status200OK)]
+
+        [ProducesResponseType(
+            typeof(ErrorResponseDto),
+            StatusCodes.Status400BadRequest)]
+
+        [ProducesResponseType(
+            typeof(ErrorResponseDto),
+            StatusCodes.Status500InternalServerError)]
+
+        [SwaggerResponseExample(
+            200,
+            typeof(SuccessResponseExample))]
+
+        [SwaggerResponseExample(
+            400,
+            typeof(ErrorResponseExample))]
+
+        [SwaggerResponseExample(
+            500,
+            typeof(ErrorResponseExample))]
+
+        public async Task<IActionResult>
+        GetAccount(
+            string accountNumber)
         {
-            var userId =
-                int.Parse(User.FindFirst("UserId")!.Value);
+            try
+            {
+                var userId =
+                    int.Parse(
+                        User.FindFirst("UserId")!
+                            .Value);
 
-            var result =
-                await _service.GetAccountByNumber(
-                    accountNumber,
-                    userId);
+                var result =
+                    await _service
+                        .GetAccountByNumber(
+                            accountNumber,
+                            userId);
 
-            return Ok(result);
+                if (!result.Success)
+                {
+                    return BadRequest(
+                        new ErrorResponseDto
+                        {
+                            Success = false,
+
+                            Message =
+                                result.Message
+                        });
+                }
+
+                return Ok(
+                    new SuccessResponseDto
+                    {
+                        Success = true,
+
+                        Message =
+                            result.Message,
+
+                        Data =
+                            result.Data
+                    });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(
+                    500,
+
+                    new ErrorResponseDto
+                    {
+                        Success = false,
+
+                        Message =
+                            ex.InnerException?.Message
+                            ?? ex.Message
+                    });
+            }
         }
     }
 }
